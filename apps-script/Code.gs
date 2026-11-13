@@ -2,14 +2,35 @@
  * Fit Check logs: paste into the Google Sheet (Extensions > Apps Script), run setup once,
  * then Deploy > New deployment > Web app (Execute as: Me, Who has access: Anyone).
  * The app sends one JSON row per API call, run, feedback and button tap.
+ * Team memory: checks also save extracted reviews to the Reviews tab and read them back by brand (doGet ?action=reviews&brand=...).
+ * After changing this code: Deploy > Manage deployments > Edit (pencil) > Version: New version > Deploy. The URL stays the same.
  */
 const LOGS = 'Logs', KPIS = 'KPIs', CHUNK = 45000;
 const HEAD = ['Time','Type','Run ID','Session','Version','Step / action','Provider','Model','Status','ms','Attempt','Fit call','Feedback','Detail','Request','Response','More (long text continues)'];
+
+const REVIEWS = 'Reviews';
+const RHEAD = ['Saved','Brand','Product','Source','Rating','Date','Size bought','Height (in)','Body type','Fit','Review text','Key'];
+const rkey_ = (brand, text) => String(brand).toLowerCase().trim() + '|' + String(text).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 80);
+function reviewsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(); let sh = ss.getSheetByName(REVIEWS);
+  if (!sh) { sh = ss.insertSheet(REVIEWS); sh.getRange(1, 1, 1, RHEAD.length).setValues([RHEAD]).setFontWeight('bold'); sh.setFrozenRows(1); sh.setColumnWidth(11, 420); }
+  return sh;
+}
+function saveReviews_(d) {
+  const sh = reviewsSheet_(), last = sh.getLastRow();
+  const have = new Set(last > 1 ? sh.getRange(2, 12, last - 1, 1).getValues().map(r => r[0]) : []);
+  const out = [];
+  (d.rows || []).forEach(r => { if (!r || !r.text || !r.brand) return; const k = rkey_(r.brand, r.text); if (have.has(k)) return; have.add(k);
+    out.push([new Date(), r.brand, r.product || '', r.source || '', r.rating === '' ? '' : r.rating, r.date || '', r.size_bought || '', r.height_in === '' ? '' : r.height_in, r.body_type || '', r.fit || '', String(r.text).slice(0, 2000), k]); });
+  if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, RHEAD.length).setValues(out);
+  return out.length;
+}
 
 function doPost(e) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const d = JSON.parse(e.postData.contents);
+    if (d.type === 'memory') { const n = saveReviews_(d); return ContentService.createTextOutput('saved ' + n); }
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LOGS) || setup();
     const parts = s => { s = s == null ? '' : String(s); const out = []; for (let i = 0; i < s.length; i += CHUNK) out.push(s.slice(i, i + CHUNK)); return out.length ? out : ['']; };
     const req = parts(d.request), res = parts(d.response), det = String(d.detail || '').slice(0, CHUNK);
@@ -20,7 +41,21 @@ function doPost(e) {
     return ContentService.createTextOutput('ok');
   } finally { lock.releaseLock(); }
 }
-function doGet() { return ContentService.createTextOutput('Fit Check log endpoint is running.'); }
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p.action === 'reviews') {
+    const brand = String(p.brand || '').toLowerCase().trim(), sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(REVIEWS);
+    const rows = [];
+    if (brand && sh && sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, RHEAD.length).getValues().forEach(r => {
+        if (String(r[1]).toLowerCase().trim() !== brand || rows.length >= 1500) return;
+        rows.push({brand: r[1], product: r[2], source: r[3], rating: r[4], date: r[5] instanceof Date ? Utilities.formatDate(r[5], 'UTC', 'yyyy-MM-dd') : r[5], size_bought: r[6], height_in: r[7], body_type: r[8], fit: r[9], text: r[10]});
+      });
+    }
+    return ContentService.createTextOutput(JSON.stringify({rows})).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput('Fit Check log endpoint is running.');
+}
 
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
