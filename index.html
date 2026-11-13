@@ -182,7 +182,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.12</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.12.1</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.12';
+const VERSION = 'v0.12.1';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -621,7 +621,7 @@ async function webResearch(brand, seller){
   const sources=kept.map(it=>{ const pg=pages.find(p=>p.url===it.url); return {id:'S'+(n++), url:it.url, site:it.site, date:(pg&&pg.date)||it.date||null, kind:it.review?(pg?'review_site':'snippet'):pg?'page':'snippet', text:pg?pg.text.replace(/\s+/g,' ').slice(0,3500):(it.title+'. '+it.snippet)}; });
   const stats={results:items.length, kept:kept.length, read:pages.length};
   if(!sources.length) return {ok:true, empty:true, stats, data:{brand, seller, window:'last 6 months', signals:[]}};
-  const o=await callAgent('Web researcher', 'decider', promptFor('web'), 'INPUT:\n'+JSON.stringify({brand, seller, today:wIso(new Date()), sources}), [], {json:true});
+  const o=await callAgent('Web researcher', 'reader', promptFor('web'), 'INPUT:\n'+JSON.stringify({brand, seller, today:wIso(new Date()), sources}), [], {json:true});
   const data=o.data||{}; (data.signals||[]).forEach(s=>{ s.sources=(s.sources||[]).filter(x=>sources.some(y=>y.url===x.url)); });
   data.signals=(data.signals||[]).filter(s=>s.sources.length);
   return {ok:true, empty:!data.signals.length&&false, stats, ms:o.ms, label:o.label, data:{brand, seller, window:'last 6 months', signals:data.signals}}; }
@@ -931,7 +931,7 @@ function viewSettings(){
       ${used.includes('custom')?`<div class="field"><label class="lab" for="cbase">Custom base URL</label><input type="text" id="cbase" placeholder="https://…/v1" value="${esc(cfg.customBase)}"></div>`:''}
     </div>
     <div class="card">
-      <div><h2>Web research</h2><p class="small muted">Checks the brand and seller for the last 6 months: Serper searches, Firecrawl reads the top pages (Jina as backup), and the Decider\u2019s model sums it up. Keys saved in API Bench on this site are used too.</p></div>
+      <div><h2>Web research</h2><p class="small muted">Checks the brand and seller for the last 6 months: Serper searches, Firecrawl reads the top pages (Jina as backup), and the Reader\u2019s model sums it up. Keys saved in API Bench on this site are used too.</p></div>
       <div class="kgrid">${[['serper','Serper','https://serper.dev/api-key'],['firecrawl','Firecrawl','https://www.firecrawl.dev/app/api-keys'],['jina','Jina (optional)','https://jina.ai/api-dashboard']].map(([k,n,u])=>`<b>${n}</b><div class="kwrap"><input type="password" data-wkey="${k}" placeholder="Paste ${n} key" value="${esc(cfg.keys[k]||'')}" autocomplete="off"></div><span class="saved">${cfg.keys[k]?'\u2713 Saved':webKey(k)?'\u2713 From API Bench':`<a href="${u}" target="_blank" rel="noopener">Get key \u2197</a>`}</span>`).join('')}</div>
       <label class="radio" style="border:0;padding:0"><input type="checkbox" id="web" ${cfg.web?'checked':''}> Web research on</label>
       ${cfg.web&&!webKey('serper')?'<p class="note">Needs a Serper key. Without one, checks skip this step.</p>':''}
