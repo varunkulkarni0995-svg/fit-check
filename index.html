@@ -182,7 +182,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.12.1</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.12.2</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.12.1';
+const VERSION = 'v0.12.2';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -399,7 +399,7 @@ async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; p
         if(quota){ const er=new Error(`${PROV[cfg.prov].n}'s free daily limit for ${cfg.model} is used up. Add a backup model with its own key in Settings, or try tomorrow.`); er.retryable=true; throw er; }
         const er=new Error(`${PROV[cfg.prov].n} error ${r.status}: ${String(msg).slice(0,160)}`); er.retryable=true; throw er; }
       const j=JSON.parse(raw), txt=readText(cfg.prov, j); let data, perr='';
-      try{ data=parseJSON(txt); }catch(e){ perr=e.message; }
+      try{ data=parseJSON(txt); if(Array.isArray(data)) data=data.find(x=>x&&typeof x==='object')||{}; }catch(e){ perr=e.message; }
       logEvent(Object.assign({}, base, {status, ms, attempt, detail:perr, response:raw}));
       if(perr){ const cut=/"finish_reason"\s*:\s*"length"|"finishReason"\s*:\s*"MAX_TOKENS"|"stop_reason"\s*:\s*"max_tokens"/.test(raw); const er=new Error(`${step}: ${cut?'the answer was cut off (too long).':perr}`); er.retryable=true; throw er; }
       const g=(((j.candidates||[])[0]||{}).groundingMetadata||{}).groundingChunks||[];
