@@ -3,7 +3,7 @@
 Prototype for the NBAY 6170 capstone (Team 14): an AI agent that reads an Amazon dress page and its reviews and gives a fit call for the shopper's usual size.
 
 - **Live page:** https://varunkulkarni0995-svg.github.io/fit-check/
-- **Status:** v0.9. Runs live once a key is added in Settings (any provider and model per agent, with an automatic backup; Gemini recommended). Without a key it uses sample data.
+- **Status:** v0.10. Runs live once a key is added in Settings (any provider and model per agent, with an automatic backup; Gemini recommended). Without a key it uses sample data.
 - **Keys:** add them on the Settings page. They are saved only in your browser and are never stored in this repo.
 
 ## Agents
