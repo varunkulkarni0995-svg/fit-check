@@ -178,7 +178,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.9</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.9.1</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -245,7 +245,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.9';
+const VERSION = 'v0.9.1';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -354,6 +354,10 @@ let runCtl = [];
 async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; parts=parts||[];
   if(!cfg.key) throw new Error(`Add a ${PROV[cfg.prov].n} key in Settings.`);
   if(!cfg.model) throw new Error(`Pick a model for the ${step} in Settings.`);
+  if(parts.some(p=>/^text\/|html/.test(p.mime))){ const txt=[], keep=[];
+    for(const p of parts){ if(/^text\/|html/.test(p.mime)){ const raw=new TextDecoder().decode(Uint8Array.from(atob(p.data), c=>c.charCodeAt(0)));
+        const body=/html/.test(p.mime)?(new DOMParser().parseFromString(raw,'text/html').body||{}).innerText||'':raw; txt.push(`--- ${p.name} ---\n`+body.replace(/\n{3,}/g,'\n\n').trim()); } else keep.push(p); }
+    text=text+'\n\nTEXT OF THE UPLOADED PAGES:\n'+txt.join('\n\n'); parts=keep; }
   if(!['gemini','anthropic'].includes(cfg.prov) && parts.some(p=>p.mime==='application/pdf')){ const txt=[], keep=[];
     for(const p of parts){ if(p.mime==='application/pdf') txt.push(`--- ${p.name} ---\n`+await pdfText(p.data)); else keep.push(p); }
     text=text+'\n\nTEXT OF THE UPLOADED PDF FILES:\n'+txt.join('\n\n'); parts=keep; }
@@ -553,8 +557,8 @@ function viewUpload(){
     <div><h1>Upload the dress</h1><p class="muted">A PDF or screenshot of the Amazon product page, plus 2–3 review pages filtered to your size.</p></div>
     <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
     ${live?'':`<div class="notice"><span>No AI key yet, so checks use sample data.</span><button class="btn btn-secondary" id="toSet">Add a key</button></div>`}
-    <label class="drop" id="drop" for="fi"><b>Drop files here</b><br><span class="small muted">or click to choose · PDF, PNG, JPG · up to 10 files, 18 MB in total</span></label>
-    <input type="file" id="fi" multiple accept=".pdf,image/*" hidden><ul class="files" id="fl"></ul>
+    <label class="drop" id="drop" for="fi"><b>Drop files here</b><br><span class="small muted">or click to choose · PDF, PNG, JPG, saved web page (HTML) · up to 10 files, 18 MB in total</span></label>
+    <input type="file" id="fi" multiple accept=".pdf,.html,.htm,.txt,image/*" hidden><ul class="files" id="fl"></ul>
     <div class="actions"><button class="btn btn-primary" id="go" disabled>Analyze</button><button class="btn btn-ghost" id="sample">Use sample files</button></div></div>`;
   wireBack(viewProfile); $('#editP').onclick=viewProfile; const ts=$('#toSet'); if(ts) ts.onclick=viewSettings;
   const nm=f=>typeof f==='string'?f:f.name;
