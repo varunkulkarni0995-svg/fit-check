@@ -175,7 +175,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.8.1</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.8.2</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -242,7 +242,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.8.1';
+const VERSION = 'v0.8.2';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -753,7 +753,7 @@ function viewSettings(){
       <td>${modelCell(a, prov, cfg)}</td>${cfg.same?'':`<td>${keyCell('ai|'+a.id, prov, cfg, a.name)}</td>`}</tr>`; }).join('');
   const gk=!!geminiKey(cfg);
   app.innerHTML=`<div class="stack">${topBar('Back', true)}
-    <div><h1>Settings</h1><p class="muted">Comes set to the recommended models. Keys stay in this browser only and go only to the provider you pick.</p></div>
+    <div><h1>Settings</h1><p class="muted">Comes set to the recommended models. Changes save automatically. Keys stay in this browser only and go only to the provider you pick.</p></div>
     <div class="card">
       <div><h2>AI agents</h2><p class="small muted">Reader, Analyst and Decider can share one provider and one key.</p></div>
       <label class="radio" style="border:0;padding:0"><input type="checkbox" id="same" ${cfg.same?'checked':''}> Use one provider and one key for all AI agents</label>
@@ -787,6 +787,8 @@ function viewSettings(){
     app.querySelectorAll('[data-aprov]').forEach(s=>cfg.aprov[s.dataset.aprov]=s.value);
     const pr=$('#prov'); if(pr) cfg.prov=pr.value; cfg.web=$('#web').checked; cfg.logUrl=$('#logUrl').value.trim(); };
   const save=()=>{ read(); store.set('keys2',cfg); };
+  app.querySelectorAll('[data-key],[data-other],#logUrl').forEach(i=>i.addEventListener('input', save));
+  app.querySelectorAll('[data-model]').forEach(s=>s.addEventListener('change', save));
   $('#same').onchange=()=>{ read(); cfg.same=$('#same').checked; if(!cfg.same) AI_AGENTS.forEach(a=>{ cfg.aprov[a.id]=cfg.prov; if(cfg.keys.ai) cfg.keys['ai|'+a.id]=cfg.keys.ai; }); store.set('keys2',cfg); viewSettings(); };
   const pr=$('#prov'); if(pr) pr.onchange=()=>{ read(); cfg.model={}; store.set('keys2',cfg); viewSettings(); };
   app.querySelectorAll('[data-aprov]').forEach(s=>s.onchange=()=>{ read(); delete cfg.model[s.dataset.aprov]; store.set('keys2',cfg); viewSettings(); });
