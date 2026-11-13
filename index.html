@@ -182,7 +182,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.13</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver" id="verTag"></span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -249,7 +249,8 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.14';
+const VERSION = 'v0.14.1';
+document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -658,9 +659,9 @@ async function moreReviews(ctx){
 
 
 /* ---------- matching: the Analyst tags, the app counts ---------- */
-const MATCH0={min_reviews:10, High:{size:1, height:3, need:false}, Medium:{size:0, height:2, need:false}, Low:{size:0, height:2, need:true}};
+const MATCH0={similar:false, min_reviews:10, High:{size:1, height:3, need:false}, Medium:{size:0, height:2, need:false}, Low:{size:0, height:2, need:true}};
 function matchCfg(){ const m=getCfg().match||{}; const o=JSON.parse(JSON.stringify(MATCH0));
-  if(m.min_reviews>0) o.min_reviews=+m.min_reviews; ['High','Medium','Low'].forEach(k=>{ if(m[k]) Object.assign(o[k], m[k]); }); return o; }
+  if(m.min_reviews>0) o.min_reviews=+m.min_reviews; if(typeof m.similar==='boolean') o.similar=m.similar; ['High','Medium','Low'].forEach(k=>{ if(m[k]) Object.assign(o[k], m[k]); }); return o; }
 const DIRW={too_small:'runs small', too_large:'runs large', too_short:'too short', too_long:'too long'};
 const opposite=d=>({too_small:'too_large', too_large:'too_small', too_short:'too_long', too_long:'too_short'})[d];
 function buildAnalysis(ctx, raw){
@@ -675,7 +676,7 @@ function buildAnalysis(ctx, raw){
     if(!band.need||steps===0){ if(hd!==null&&hd<=band.height) why.push('similar height'); if(t.body_match===true) why.push('similar body'); }
     if((t.compares||[]).some(c=>c&&c.yours&&c.relation==='same')) why.push('fits like a brand you wear');
     return {r, t, steps, like:why.length>0, why}; });
-  const like=info.filter(x=>x.like), basis=like.length>=cfg.min_reviews?'like_you':'all_shoppers', set=basis==='like_you'?like:info;
+  const like=info.filter(x=>x.like), basis=(cfg.similar&&like.length>=cfg.min_reviews)?'like_you':'all_shoppers', set=basis==='like_you'?like:info;
   /* a review one size away only tells us about the shopper's size in one direction */
   const carries=(x,iss)=>{ if(iss.type!=='fit'||!x.steps||basis!=='like_you') return true; if(iss.dimension==='length'||iss.dimension==='sleeves') return false;
     return x.steps>0 ? iss.direction==='too_small' : iss.direction==='too_large'; };
@@ -702,7 +703,7 @@ function buildAnalysis(ctx, raw){
   const cmp={}; info.forEach(x=>(x.t.compares||[]).forEach(c=>{ if(!c||!c.yours||!c.to) return; const k=String(c.to).trim(); const e=cmp[k]=cmp[k]||{to:k, same:0, smaller:0, larger:0};
     if(e[c.relation]!=null) e[c.relation]++; }));
   return {similar_review_ids:set.map(x=>x.r.id), similar_review_count:set.length, issues, fit_tolerance:tol,
-    basis, like_count:like.length, all_count:info.length, tolerance_used:lvl, nearby:like.filter(x=>x.steps&&Math.abs(x.steps)>0).length,
+    basis, similar_on:cfg.similar, like_count:like.length, all_count:info.length, tolerance_used:lvl, nearby:like.filter(x=>x.steps&&Math.abs(x.steps)>0).length,
     fit_votes:votes, conflicts, compares_yours:Object.values(cmp)}; }
 
 /* ---------- review memory: every check adds its reviews to the team Sheet ---------- */
@@ -852,10 +853,10 @@ function toResult(ctx, dec){ dec=dec||{}; const rd=ctx.reader||{}, an=ctx.analys
   const extra=oc.map(x=>x.count+' from '+x.site); if(ctx.counts&&ctx.counts.memory) extra.unshift(ctx.counts.memory+' from earlier team checks');
   const srcLine=extra.length?` Reviews read: ${ctx.counts.upload} from your upload + ${extra.join(', ')}.`:'';
   return {live:true, srcLine, status:dec.status, product:p.name||'This item', brand:p.brand||'', seller:p.seller||'', similar:sim, total:(rd.reviews||[]).length,
-    basis, likeCount:an.like_count??sim, toleranceUsed:an.tolerance_used||null, nearby:an.nearby||0, votes:an.fit_votes||null, conflicts:an.conflicts||[], compares:an.compares_yours||[], brandMemory:ctx.brandMemory||null,
+    basis, similarOn:an.similar_on!==false, likeCount:an.like_count??sim, toleranceUsed:an.tolerance_used||null, nearby:an.nearby||0, votes:an.fit_votes||null, conflicts:an.conflicts||[], compares:an.compares_yours||[], brandMemory:ctx.brandMemory||null,
     warnings:(dec.warnings||[]).map(map), unconfirmed:(dec.unconfirmed||[]).map(map),
     tolerance:{shown:!!ft.shown, level:ft.shown?ft.level:'Unclear', reason:ft.reason||'Not enough evidence about stretch or give.', evidence:ft.shown?((an.fit_tolerance||{}).evidence||''):'', conf:ft.confidence||0},
-    likeYou:(dec.shoppers_like_you||'')+(an.sized_up_count?` ${an.sized_up_count} of them say they bought a bigger size than usual.`:''),
+    likeYou:an.similar_on===false?'':(dec.shoppers_like_you||'')+(an.sized_up_count?` ${an.sized_up_count} of them say they bought a bigger size than usual.`:''),
     brandLine, brandLinks:(ctx.web&&ctx.web.ok)?links.map(l=>({url:l.url, label:`${host(l.url)}${l.date?' · '+l.date:''}`})):[],
     chart:chartFrom(p.size_chart), chartBrand:p.brand||'the brand',
     tools:Object.keys(ctx.times).map(k=>[k, ctx.models[k]||'', secs(ctx.times[k])])}; }
@@ -904,7 +905,7 @@ const ICON={good:'<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy
 function viewResults(){
   nav('check'); const r=current.result, t=r.tolerance, c=callFor(r), q=asks(r), fb=current.feedback&&current.feedback.type;
   app.innerHTML=`<div class="stack col">${topBar('Upload', true, 3)}
-    <div><p class="eyebrow">${esc(r.brand)}${r.seller?' · sold by '+esc(r.seller):''}</p><h1>${esc(r.product)}</h1><p class="muted small">${r.srcLine?esc(r.srcLine.trim())+' ':''}${r.basis==='all_shoppers'?`Based on all ${r.similar} shoppers: only ${r.likeCount} reviews came from shoppers like you, so treat this as a lower-confidence call.`:`Based on ${r.similar} reviews from shoppers like you${r.nearby?` (incl. ${r.nearby} from a size either side)`:''}, ${r.total} review${r.total===1?'':'s'} read.`}${r.sample?' Sample data.':''}</p></div>
+    <div><p class="eyebrow">${esc(r.brand)}${r.seller?' · sold by '+esc(r.seller):''}</p><h1>${esc(r.product)}</h1><p class="muted small">${r.srcLine?esc(r.srcLine.trim())+' ':''}${r.basis==='all_shoppers'?(r.similarOn?`Based on all ${r.similar} shoppers: only ${r.likeCount} reviews came from shoppers like you, so treat this as a lower-confidence call.`:`Based on all ${r.similar} reviews read (matching to shoppers like you is off).`):`Based on ${r.similar} reviews from shoppers like you${r.nearby?` (incl. ${r.nearby} from a size either side)`:''}, ${r.total} review${r.total===1?'':'s'} read.`}${r.sample?' Sample data.':''}</p></div>
     <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
     ${profileChanged?`<div class="notice"><span>Profile changed. Results still use the old profile.</span><button class="btn btn-secondary" id="rerun">Check again</button></div>`:''}
     <div class="call ${c.cls}" role="status">${ICON[c.cls]}<div><p class="eyebrow">Fit call for your usual ${esc(profile.size)}</p><p class="word">${c.word}</p><p>${esc(c.why)}.</p></div></div>
@@ -1064,6 +1065,7 @@ function viewSettings(){
     </div>
     <div class="card">
       <div><h2>Matching rules</h2><p class="small muted">Who counts as “shoppers like you”. The item’s fit tolerance picks the row. If fewer than the minimum match, the call uses all shoppers and says so.</p></div>
+      <label class="radio" style="border:0;padding:0"><input type="checkbox" id="msim" ${matchCfg().similar?'checked':''}> Use only shoppers like you (off: every review counts)</label>
       <div class="field"><label class="lab" for="mmin">Minimum reviews for a fit call</label><input type="number" id="mmin" min="1" max="50" value="${matchCfg().min_reviews}" style="max-width:120px"></div>
       <table class="keys"><thead><tr><th>Fit tolerance</th><th>Sizes either side</th><th>Height within (in)</th><th>Size must match</th></tr></thead><tbody>
       ${['High','Medium','Low'].map(k=>{ const b=matchCfg()[k]; return `<tr><td><b>${k}</b></td><td><input type="number" min="0" max="2" data-mb="${k}|size" value="${b.size}" style="max-width:80px"></td><td><input type="number" min="0" max="6" data-mb="${k}|height" value="${b.height}" style="max-width:80px"></td><td><input type="checkbox" data-mb="${k}|need" ${b.need?'checked':''} aria-label="${k}: size must match"></td></tr>`; }).join('')}
@@ -1109,6 +1111,7 @@ function viewSettings(){
   $('#mmin').onchange=()=>{ const v=Math.max(1,Math.min(50,parseInt($('#mmin').value,10)||10)); cfg.match=cfg.match||{}; cfg.match.min_reviews=v; persist(); act('Matching rules', cfg.match); toast('Saved'); };
   app.querySelectorAll('[data-mb]').forEach(i=>i.onchange=()=>{ const [k,f]=i.dataset.mb.split('|'); cfg.match=cfg.match||{}; cfg.match[k]=Object.assign({}, matchCfg()[k], cfg.match[k]||{});
     cfg.match[k][f]=f==='need'?i.checked:Math.max(0,parseFloat(i.value)||0); persist(); act('Matching rules', cfg.match); toast('Saved'); });
+  $('#msim').onchange=()=>{ cfg.match=cfg.match||{}; cfg.match.similar=$('#msim').checked; persist(); act('Matching rules', cfg.match); toast('Saved'); };
   $('#mreset').onclick=()=>{ delete cfg.match; persist(); act('Matching rules', 'reset'); viewSettings(); };
   $('#web').onchange=()=>{ cfg.web=$('#web').checked; persist(); act('Web research', cfg.web?'on':'off'); viewSettings(); };
   $('#logUrl').oninput=()=>{ cfg.logUrl=$('#logUrl').value.trim(); persist(); };

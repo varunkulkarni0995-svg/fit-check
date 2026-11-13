@@ -3,7 +3,7 @@
 Prototype for the NBAY 6170 capstone (Team 14): an AI agent that reads a clothing product page (Amazon or any store) and its reviews and gives a fit call for the shopper's usual size.
 
 - **Live page:** https://varunkulkarni0995-svg.github.io/fit-check/
-- **Status:** v0.14. Runs live once a key is added in Settings (any provider and model per agent, with an automatic backup; Gemini recommended). Without a key it uses sample data.
+- **Status:** v0.14.1. Runs live once a key is added in Settings (any provider and model per agent, with an automatic backup; Gemini recommended). Without a key it uses sample data.
 - **Keys:** add them on the Settings page. They are saved only in your browser and are never stored in this repo.
 
 ## Agents
@@ -23,6 +23,7 @@ One file, no build step: open `index.html` in a browser.
 - **Nearby sizes:** a review one size up that says "tight" counts for your size; one size down that says "loose" counts too.
 - **Brands you wear:** reviews saying "fits like Uniqlo" count as shoppers like you when Uniqlo is in your profile.
 - **Reviews disagree:** when both "tight" and "loose" are reported for the same area, the result shows both sides and the call becomes Check first.
+- **Shoppers-like-you filter:** off by default for now (every review counts); turn on in Settings → Matching rules.
 - **Fallback:** if fewer than the minimum (default 10) match you, the call uses all shoppers and says so.
 - **Team memory:** every check saves its reviews to the Sheet's Reviews tab; later checks of the same product reuse them, and other products from the brand give a brand-level sizing line.
 
