@@ -181,7 +181,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.10</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.10.1</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -248,11 +248,11 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.10';
+const VERSION = 'v0.10.1';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
-  groq:{n:'Groq', url:'https://console.groq.com/keys', base:'https://api.groq.com/openai/v1', m:['llama-3.3-70b-versatile']},
+  groq:{n:'Groq', url:'https://console.groq.com/keys', base:'https://api.groq.com/openai/v1', m:['openai/gpt-oss-120b','openai/gpt-oss-20b','qwen/qwen3.8-27b']},
   openrouter:{n:'OpenRouter', url:'https://openrouter.ai/keys', base:'https://openrouter.ai/api/v1', listNoKey:1, m:['nvidia/nemotron-3-ultra-550b-a55b:free']},
   mistral:{n:'Mistral', url:'https://console.mistral.ai/api-keys', base:'https://api.mistral.ai/v1', m:['mistral-small-latest']},
   cohere:{n:'Cohere', url:'https://dashboard.cohere.com/api-keys', base:'https://api.cohere.ai/compatibility/v1', listUrl:'https://api.cohere.com/v1/models?endpoint=chat', m:['command-a-03-2025']},
@@ -359,6 +359,7 @@ function readText(prov, j){
 function parseJSON(t){ t=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
   try{ return JSON.parse(t); }catch(e){ const a=t.indexOf('{'), b=t.lastIndexOf('}'); if(a>=0&&b>a){ try{ return JSON.parse(t.slice(a,b+1)); }catch(e2){} } throw new Error('The model did not return valid JSON.'); } }
 let runCtl = [];
+const CALL_TIMEOUT = 120000;
 async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; parts=parts||[];
   if(!cfg.key) throw new Error(`Add a ${PROV[cfg.prov].n} key in Settings.`);
   if(!cfg.model) throw new Error(`Pick a model for the ${step} in Settings.`);
@@ -378,7 +379,7 @@ async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; p
   const logReq=JSON.stringify(req.body, (k,v)=> (k==='data'&&typeof v==='string') ? `[file, ${Math.max(1,Math.round(v.length*0.75/1024))} KB]` : (typeof v==='string'&&v.startsWith('data:')) ? '[image]' : v);
   const base={type:'api', run_id:(current&&current.id)||'', step, provider:cfg.prov, model:cfg.model, request:logReq};
   for(let attempt=1; attempt<=2; attempt++){
-    const t0=performance.now(), ctl=new AbortController(), to=setTimeout(()=>ctl.abort(), 60000); runCtl.push(ctl);
+    const t0=performance.now(), ctl=new AbortController(), to=setTimeout(()=>ctl.abort(), CALL_TIMEOUT); runCtl.push(ctl);
     let raw='', status='';
     try{
       const r=await fetch(req.url, {method:'POST', headers:req.headers, body:JSON.stringify(req.body), signal:ctl.signal});
@@ -397,7 +398,7 @@ async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; p
       const g=(((j.candidates||[])[0]||{}).groundingMetadata||{}).groundingChunks||[];
       return {data, ms, attempts:attempt, grounding:g.map(x=>x.web).filter(Boolean)};
     }catch(e){
-      if(e.name==='AbortError'){ if(cancelled) throw e; logEvent(Object.assign({}, base, {status:'timeout', ms:60000, attempt})); const er=new Error(`${step} took longer than 60 seconds.`); er.retryable=true; throw er; }
+      if(e.name==='AbortError'){ if(cancelled) throw e; logEvent(Object.assign({}, base, {status:'timeout', ms:CALL_TIMEOUT, attempt})); const er=new Error(`${step} took longer than ${CALL_TIMEOUT/1000} seconds.`); er.retryable=true; throw er; }
       if(e instanceof TypeError && attempt===1){ logEvent(Object.assign({}, base, {status:'network', ms:Math.round(performance.now()-t0), attempt, detail:e.message})); onRetry(step, 'network'); continue; }
       if(e instanceof TypeError){ const er=new Error(`Couldn't reach ${PROV[cfg.prov].n}. Check the connection, or that this provider allows calls from a web page.`); er.retryable=true; throw er; }
       throw e;
