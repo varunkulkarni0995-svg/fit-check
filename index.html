@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fit Check Prototype</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+Mono:wght@500&display=swap">
+<style>
+/* Layout: web two-column (form + live figure) on warm paper, collapsing to one column on phones. Varun Kulkarni design system, Pro mode. */
+:root{
+  --surface-0:#f7f5f0; --surface-1:#ffffff; --surface-2:#efece5;
+  --ink:#1b1e23; --ink-muted:#565b63; --line:#dcd8cf;
+  --accent:#5b3fc4; --on-accent:#ffffff; --accent-soft:#ece7fb;
+  --success:#1e7f4f; --warning:#9a5800; --danger:#c0322b;
+  --shadow:0 1px 2px rgba(27,30,35,.06),0 6px 20px rgba(27,30,35,.06);
+  --font-sans:"Noto Sans","Segoe UI",system-ui,sans-serif;
+  --font-mono:"Noto Sans Mono","Cascadia Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --surface-0:#15171b;--surface-1:#1f2228;--surface-2:#2a2e36;--ink:#f1efea;--ink-muted:#a7abb2;--line:#353a43;
+  --accent:#a08bf5;--on-accent:#15171b;--accent-soft:#2d2747;--success:#5cc98f;--warning:#f2b65a;--danger:#ff8a80;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --surface-0:#15171b;--surface-1:#1f2228;--surface-2:#2a2e36;--ink:#f1efea;--ink-muted:#a7abb2;--line:#353a43;
+  --accent:#a08bf5;--on-accent:#15171b;--accent-soft:#2d2747;--success:#5cc98f;--warning:#f2b65a;--danger:#ff8a80;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--surface-0);color:var(--ink);font:400 16px/24px var(--font-sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1040px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:20px 16px;border-bottom:1px solid var(--line);margin-bottom:24px}
+.brand{display:flex;flex-direction:column}
+.brand b{font:800 20px/24px var(--font-sans);letter-spacing:-.01em}
+.brand small{font:400 12px/16px var(--font-sans);color:var(--ink-muted)}
+.ver{font:500 11px/16px var(--font-mono);color:var(--ink-muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+nav{display:flex;gap:4px}
+nav button{background:none;border:0;font:600 14px/20px var(--font-sans);color:var(--ink-muted);padding:8px 10px;border-radius:6px;cursor:pointer}
+nav button[aria-current="page"]{color:var(--ink);background:var(--surface-2)}
+.col{max-width:600px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;align-items:start}
+@media (max-width:880px){.grid2{grid-template-columns:minmax(0,1fr)}.figpanel{order:-1}}
+.figpanel{position:sticky;top:calc(16px + env(safe-area-inset-top,0px))}
+@media (max-width:880px){.figpanel{position:static}.figpanel svg{max-height:200px}}
+.eyebrow{font:600 12px/16px var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin:0 0 4px}
+h1{font:700 28px/34px var(--font-sans);margin:0 0 6px;text-wrap:balance}
+h2{font:600 17px/24px var(--font-sans);margin:0}
+p{margin:0}
+.muted{color:var(--ink-muted)} .small{font-size:14px;line-height:20px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 150px;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.lab{display:flex;align-items:center;gap:6px;font:600 14px/20px var(--font-sans)}
+.lab .req{font:500 12px/16px var(--font-sans);color:var(--ink-muted)}
+.info{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:var(--surface-1);color:var(--ink-muted);font:700 12px/1 var(--font-sans);cursor:pointer;display:inline-grid;place-items:center;padding:0}
+.info[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+.infotext{font-size:14px;line-height:20px;color:var(--ink-muted);background:var(--surface-2);border-radius:8px;padding:8px 12px}
+select,input[type=text],input[type=password],textarea{min-height:44px;padding:8px 12px;font:400 16px/24px var(--font-sans);color:var(--ink);background:var(--surface-1);border:1px solid var(--line);border-radius:6px;width:100%}
+textarea{min-height:88px;resize:vertical}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 20px;font:600 15px/20px var(--font-sans);border-radius:12px;border:1px solid transparent;cursor:pointer}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-secondary{background:var(--surface-1);color:var(--ink);border-color:var(--line)}
+.btn-ghost{background:none;color:var(--accent);padding-inline:8px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+@media (max-width:520px){.actions .btn-primary{flex:1 1 100%}}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-1)}
+.seg label{display:flex;align-items:center;padding:8px 12px;font:500 14px/20px var(--font-sans);cursor:pointer;border-right:1px solid var(--line)}
+.seg label:last-child{border-right:0}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--surface-2);font-weight:700}
+.seg label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:-3px}
+.dial{display:flex;align-items:center;gap:10px}
+.dial button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface-1);color:var(--ink);font:600 18px/1 var(--font-sans);cursor:pointer;flex:none}
+.dial output{flex:1;text-align:center;font:700 20px/28px var(--font-sans)}
+.dial output small{display:block;font:500 13px/18px var(--font-mono);color:var(--ink-muted)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.bodycards{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.bodycards label{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font:500 13px/16px var(--font-sans);text-align:center;background:var(--surface-1)}
+.bodycards input{position:absolute;opacity:0;pointer-events:none}
+.bodycards label:has(input:checked){border-color:var(--accent);background:var(--accent-soft);font-weight:700}
+.bodycards label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
+.bodycards svg{width:38px;height:56px}
+.unit{position:relative}
+.unit input{width:100%;min-height:44px;padding:8px 44px 8px 12px;font:400 16px/24px var(--font-sans);color:var(--ink);background:var(--surface-1);border:1px solid var(--line);border-radius:6px}
+.unit span{position:absolute;right:12px;top:10px;font-size:14px;color:var(--ink-muted)}
+.est{font:600 11px/16px var(--font-sans);color:var(--warning)}
+.err{font-size:13px;color:var(--danger)}
+details.opt{border-top:1px solid var(--line);padding-top:14px}
+details.opt>summary{cursor:pointer;font:600 15px/22px var(--font-sans);list-style:none}
+details.opt>summary::-webkit-details-marker{display:none}
+details.opt>summary::before{content:"+ ";color:var(--accent)}
+details.opt[open]>summary::before{content:"\2212  "}
+details>summary{cursor:pointer;font:600 14px/20px var(--font-sans);color:var(--accent);list-style:none}
+details>summary::-webkit-details-marker{display:none}
+.suggest{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;background:var(--surface-2)}
+.figcard{background:var(--surface-1);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:center}
+.figcard svg{width:100%;max-width:220px;height:auto}
+.legend{width:100%;font:500 13px/20px var(--font-mono);color:var(--ink-muted);display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.drop{border:1.5px dashed var(--line);border-radius:12px;padding:28px 16px;text-align:center;background:var(--surface-1);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.files{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.files li{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:8px 12px;background:var(--surface-2);border-radius:6px}
+.files li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:var(--surface-2);font:500 14px/20px var(--font-sans)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.steps li{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.steps li:last-child{border-bottom:0}
+.dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:11px}
+.done .dot{border-color:var(--success);background:var(--success);color:var(--surface-1)}
+.run .dot{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.run .dot{animation:none}}
+.num{font:500 13px/20px var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink-muted)}
+.note{font-size:13px;color:var(--warning)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.back{background:none;border:0;color:var(--ink-muted);font:600 14px/20px var(--font-sans);padding:6px 0;cursor:pointer}
+.back:hover{color:var(--ink)}
+.prog{display:flex;gap:6px;align-items:center;font:500 12px/16px var(--font-sans);color:var(--ink-muted)}
+.prog i{width:22px;height:4px;border-radius:2px;background:var(--line)} .prog i.on{background:var(--ink-muted)}
+.intro{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;background:var(--accent-soft)}
+.intro ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.call{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;border-radius:12px;background:var(--surface-1);border:2px solid var(--warning)}
+.call.good{border-color:var(--success)} .call.poor{border-color:var(--danger)}
+.call svg{flex:none;width:32px;height:32px}
+.call .word{font:800 22px/28px var(--font-sans)}
+.call.good .word{color:var(--success)} .call.check .word{color:var(--warning)} .call.poor .word{color:var(--danger)}
+.ask{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;border:1px dashed var(--accent);background:var(--surface-1)}
+.sec{font:600 12px/16px var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin:8px 0 -4px}
+.warn{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-1)}
+.warn-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.warn-title{font:600 16px/22px var(--font-sans)}
+.tag{font:600 12px/18px var(--font-sans);padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--ink-muted)}
+.tag.rec{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.meter{display:flex;gap:4px;align-items:center}
+.meter i{width:24px;height:6px;border-radius:3px;background:var(--surface-2)} .meter i.on{background:var(--ink-muted)}
+.conf-txt{font:600 12px/18px var(--font-sans);color:var(--ink-muted);margin-left:4px}
+blockquote{margin:0;padding:8px 12px;border-left:2px solid var(--line);color:var(--ink-muted);font-size:14px;line-height:21px}
+.src{font-size:13px;color:var(--ink-muted)}
+table.cmp{width:100%;border-collapse:collapse;font-size:14px}
+table.cmp th{text-align:left;font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);padding:6px 0;border-bottom:1px solid var(--line)}
+table.cmp td{padding:8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.alert{display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:12px;background:var(--surface-1);border:1px solid var(--warning)}
+.radio{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font:400 15px/20px var(--font-sans);cursor:pointer}
+.radio:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.hist li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;background:var(--surface-1);border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
+.hist li>div{min-width:0}
+.notice{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-soft);font-size:14px}
+.help{font-size:14px;line-height:21px;color:var(--ink-muted);display:flex;flex-direction:column;gap:6px;margin-top:8px}
+details.demo{font-size:13px;color:var(--ink-muted)}
+details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.demo td{padding:4px 0;border-bottom:1px solid var(--line)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface-0);padding:10px 16px;border-radius:12px;font-size:14px;box-shadow:var(--shadow);max-width:calc(100vw - 32px)}
+.toast button{background:none;border:0;color:inherit;font:700 14px/20px var(--font-sans);text-decoration:underline;margin-left:10px;cursor:pointer}
+.keys{width:100%;border-collapse:collapse}
+.keys th{text-align:left;font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);padding:8px 10px 8px 0;border-bottom:1px solid var(--line)}
+.keys td{padding:14px 10px 14px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.keys td:first-child{width:24%} .keys td:nth-child(2){width:38%}
+.keys a{font:500 13px/18px var(--font-sans);color:var(--accent)}
+.kwrap{display:flex;gap:6px} .kwrap input{flex:1;min-width:0}
+.kwrap button{min-height:44px;padding:0 10px;border:1px solid var(--line);background:var(--surface-1);border-radius:6px;color:var(--ink-muted);font:600 12px/1 var(--font-sans);cursor:pointer}
+.badge{display:inline-block;font:600 11px/16px var(--font-sans);padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--ink-muted);margin-top:6px}
+.badge.ok{border-color:var(--success);color:var(--success)}
+@media (max-width:720px){.keys thead{display:none}.keys tr{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-bottom:1px solid var(--line)}.keys td{border:0;padding:0;width:auto!important}}
+.statebar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink-muted);margin-top:28px;padding-top:14px;border-top:1px solid var(--line)}
+.statebar button{font:500 12px/16px var(--font-sans);background:var(--surface-1);border:1px solid var(--line);color:var(--ink-muted);border-radius:999px;padding:4px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div class="brand"><b>Fit Check<span class="ver">v0.6</span></b><small>prototype · sample data · by Varun Kulkarni</small></div>
+    <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
+  </header>
+  <main id="app" aria-live="polite"></main>
+  <div class="statebar" aria-label="Demo states">Preview states:
+    <button data-state="results">Results</button><button data-state="unreadable">Couldn't read</button><button data-state="thin">Not enough evidence</button>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('fc_'+k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('fc_'+k, JSON.stringify(v)); }catch(e){} }
+};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const opts = (list, sel) => list.map(v=>`<option${v===sel?' selected':''}>${v}</option>`).join('');
+const DEFAULT = {gender:'Female', height:168, size:'M', shoe:'8', width:'Standard', body:'Not sure', unit:'cm', m:{},
+  bra:{band:'',cup:''}, anchor:{brand:'',size:''}, torso:'', shoulders:'', heel:'', pref:'Regular', sensitive:false};
+let profile = store.get('profile4', null);
+let draft = null, files = [], current = null, cancelled = false, prevView = null, returnToResults = false, profileChanged = false, answered = {};
+
+const INFO = {
+  gender:'Used to match reviewers and to show the right shoe-width terms.',
+  height:'The biggest driver of length issues. Also the scale when we read a photo.',
+  size:'The dress size you buy most often. Results tell you how this dress compares.',
+  shoe:'Required. Saved for footwear checks later. Width uses US letters: women Narrow 2A, Standard B, Wide D, Extra wide 2E; men B, D, 2E, 4E.',
+  body:'How your bust, waist and hips compare. Used to find reviewers built like you. Pick the closest, or use a photo.',
+  bust:'Around the fullest part of the chest, tape level.',
+  waist:'Around the narrowest part, above the belly button.',
+  hips:'Around the fullest part of the hips and seat.',
+  inseam:'Inside of the leg, from crotch to ankle. Helps with length.',
+  bra:'Often more reliable than a bust measurement for bust fit.',
+  anchor:'A brand that fits you well and your size there. We compare its sizing with this brand.',
+  torso:'Short or long torsos change where the waist seam sits.',
+  shoulders:'Affects straps, sleeves and fitted bodices.',
+  heel:'Changes how midi and maxi lengths fall.',
+  pref:'How you like dresses to feel. Changes how we explain fit tolerance.',
+  sensitive:'Turns fabric complaints (itchy, sheer) into warnings for you.',
+  photo:'Estimates only the fields you left blank. Your typed values never change.'
+};
+const RANGES = {bust:[60,160], waist:[45,150], hips:[60,170], inseam:[55,100]};
+const LABEL = {bust:'Bust', waist:'Waist', hips:'Hips', inseam:'Inseam'};
+const EX = {bust:90, waist:72, hips:98, inseam:78};
+const BODY = {Hourglass:{b:92,w:70,h:98}, Pear:{b:86,w:72,h:102}, Apple:{b:98,w:90,h:96}, Rectangle:{b:88,w:80,h:92}, 'Inverted triangle':{b:98,w:76,h:90}};
+const CHART = {S:{bust:[84,88],waist:[66,70],hips:[90,94]}, M:{bust:[88,92],waist:[70,74],hips:[94,98]}, L:{bust:[92,96],waist:[74,78],hips:[98,102]}, XL:{bust:[96,102],waist:[78,84],hips:[102,108]}};
+const toCm=(v,u)=>u==='in'?v*2.54:v, fromCm=(v,u)=>u==='in'?Math.round(v/2.54*10)/10:Math.round(v);
+const ftin = cm => { const t=Math.round(cm/2.54); return `${Math.floor(t/12)}′${t%12}″`; };
+
+const SAMPLE = {
+  product:'Floral Wrap Midi Dress', brand:'Lunaria', seller:'Lunaria Official', similar:14, total:52,
+  warnings:[
+    {chip:'Runs small · Bust', area:'bust', tag:'Recurring', conf:88, count:'9 of 14 shoppers like you',
+     quotes:['I’m usually an M and the bust was so tight I couldn’t zip it.','Sized up to L and it fits perfectly in the chest.']},
+    {chip:'Runs long · Length', area:'length', tag:'Recurring', conf:74, count:'6 of 14 shoppers like you',
+     quotes:['I’m 5′5″ and it hit my ankles, not mid-calf.','Had to hem it about two inches.']}],
+  unconfirmed:[{chip:'Fabric see-through', area:'fabric', tag:'Isolated', conf:52, count:'2 of 14', quotes:['A little sheer in bright light.']}],
+  tolerance:{level:'Low', reason:'No stretch: 100% polyester, fixed bodice.', evidence:'“There’s zero give in the chest.”', conf:81},
+  likeYou:'10 of 14 shoppers like you sized up to L.',
+  brandLine:'3 recent complaints about inconsistent sizing across Lunaria dresses.',
+  brandSrc:['reddit.com · Oct 2026','trustpilot.com · Sep 2026','trustpilot.com · Aug 2026'],
+  tools:[['Reader','Gemini Flash','4.1s'],['Web researcher','Tavily + Firecrawl → Groq','9.8s (backup used)'],['Analyst','Groq · Llama 3.3 70B','5.6s'],['Decider','Groq · Llama 3.3 70B','1.9s']]
+};
+
+/* ---------- shared bits ---------- */
+let toastT;
+function toast(msg, undo){ const t=$('#toast'); t.innerHTML=esc(msg)+(undo?'<button id="undo">Undo</button>':''); t.hidden=false;
+  if(undo) $('#undo').onclick=()=>{ undo(); t.hidden=true; }; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, undo?6000:2600); }
+function nav(w){ ['check','history','settings'].forEach(x=>$('#nav-'+x).setAttribute('aria-current', w===x?'page':'false')); }
+function topBar(label, back, step){ return `<div class="topbar">${back?`<button class="back" id="backBtn">← ${esc(label)}</button>`:'<span></span>'}
+  ${step?`<span class="prog" aria-label="Step ${step} of 3">${[1,2,3].map(i=>`<i class="${i<=step?'on':''}"></i>`).join('')} Step ${step} of 3</span>`:''}</div>`; }
+function wireBack(fn){ const b=$('#backBtn'); if(b) b.onclick=fn; }
+function lab(key, text, id, required){ return `<span class="lab">${id?`<label for="${id}">${text}</label>`:`<span id="l_${key}">${text}</span>`}${required?'<span class="req">required</span>':''}
+  <button type="button" class="info" aria-label="About ${esc(key)}" aria-expanded="false" aria-controls="i_${key}">i</button></span>
+  <p class="infotext" id="i_${key}" hidden>${esc(INFO[key])}</p>`; }
+function wireInfo(){ app.querySelectorAll('.info').forEach(b=>b.onclick=()=>{ const t=document.getElementById(b.getAttribute('aria-controls')); const open=t.hidden; t.hidden=!open; b.setAttribute('aria-expanded', String(open)); }); }
+function summary(){ if(!profile) return ''; return `<span class="chip">${esc(profile.gender)} · ${ftin(profile.height)} · ${esc(profile.size)}${profile.body!=='Not sure'?' · '+esc(profile.body):''} · shoe ${esc(profile.shoe)} ${esc(profile.width)}</span>`; }
+function seg(name, list, sel, aria){ return `<div class="seg" role="radiogroup" aria-label="${esc(aria)}">${list.map(x=>`<label><input type="radio" name="${name}" value="${esc(x)}" ${x===sel?'checked':''}>${esc(x)}</label>`).join('')}</div>`; }
+
+/* ---------- body diagrams and live figure ---------- */
+function mini(type){ const g=BODY[type]; const s=v=>v/100*15;
+  const y=[14,22,32,42,54]; const sh = type==='Inverted triangle'?16:type==='Pear'?11:13;
+  const pts=[[sh,y[0]],[s(g.b),y[1]],[s(g.w),y[2]],[s(g.h),y[3]],[s(g.h)*0.85,y[4]]];
+  const R=pts.map(p=>`${19+p[0]},${p[1]}`).join(' '), L=pts.slice().reverse().map(p=>`${19-p[0]},${p[1]}`).join(' ');
+  return `<svg viewBox="0 0 38 56" aria-hidden="true"><circle cx="19" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><polygon points="${R} ${L}" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`; }
+function figureValues(p){
+  const base = BODY[p.body] || {b:90,w:76,h:98}; const m=p.m||{};
+  const v = k => m[k] ? m[k].v : null;
+  return {H:p.height, b: v('bust') ?? base.b, w: v('waist') ?? base.w, h: v('hips') ?? base.h, inseam: v('inseam') ?? p.height*0.45,
+    est:{b:!m.bust||m.bust.est, w:!m.waist||m.waist.est, h:!m.hips||m.hips.est},
+    sh: p.shoulders==='Broad'?1.12:p.shoulders==='Narrow'?0.9:1, torso: p.torso==='Long'?1.06:p.torso==='Short'?0.94:1};
+}
+function figure(p){
+  const f = figureValues(p); const figH = 300*(f.H/185); const y0 = 340-figH; const k = figH/300;
+  const hw = g => Math.max(8,(g-45)*0.62)*k;   // exaggerated so each cm is visible
+  const head=figH*0.065, neck=y0+head*2+4;
+  const yS=neck+figH*0.03, yB=y0+figH*0.27*f.torso, yW=y0+figH*0.38*f.torso, yH=y0+figH*0.5;
+  const crotch = 340 - f.inseam/f.H*figH; const cx=110;
+  const sW=hw(f.b)*1.05*f.sh, bW=hw(f.b), wW=hw(f.w), hW=hw(f.h);
+  const side = d => `M${cx+d*8*k},${neck} L${cx+d*sW},${yS} Q${cx+d*(sW+2)},${(yS+yB)/2} ${cx+d*bW},${yB} Q${cx+d*(bW+wW)/2},${(yB+yW)/2} ${cx+d*wW},${yW} Q${cx+d*(wW+hW)/2*1.02},${(yW+yH)/2} ${cx+d*hW},${yH} L${cx+d*hW*0.86},${crotch}`;
+  const legs = [-1,1].map(d=>`M${cx+d*hW*0.86},${crotch} L${cx+d*hW*0.55},337 L${cx+d*6*k},337 L${cx},${crotch+6}`).join(' ');
+  const dashed = (f.est.b||f.est.w||f.est.h);
+  const ink='var(--ink-muted)';
+  return `<svg viewBox="0 0 220 350" role="img" aria-label="Figure: ${ftin(f.H)}, bust ${Math.round(f.b)}, waist ${Math.round(f.w)}, hips ${Math.round(f.h)} cm">
+    <line x1="10" y1="340" x2="210" y2="340" stroke="var(--line)"/>
+    <line x1="18" y1="${y0}" x2="18" y2="340" stroke="var(--line)"/><text x="22" y="${y0+10}" font-size="9" fill="${ink}" font-family="var(--font-mono)">${Math.round(f.H)} cm</text>
+    <circle cx="${cx}" cy="${y0+head}" r="${head}" fill="var(--surface-2)" stroke="${ink}" stroke-width="1.5"/>
+    <path d="${side(1)}" fill="none" stroke="${ink}" stroke-width="1.6" ${dashed?'stroke-dasharray="5 4"':''}/>
+    <path d="${side(-1)}" fill="none" stroke="${ink}" stroke-width="1.6" ${dashed?'stroke-dasharray="5 4"':''}/>
+    <path d="${legs}" fill="none" stroke="${ink}" stroke-width="1.5" stroke-linejoin="round"/>
+    ${[['B',yB,bW],['W',yW,wW],['H',yH,hW]].map(([t,y,w])=>`<line x1="${cx-w}" y1="${y}" x2="${cx+w}" y2="${y}" stroke="var(--accent)" stroke-width="1" opacity=".55"/><text x="${cx+w+6}" y="${y+3}" font-size="9" fill="${ink}" font-family="var(--font-mono)">${t}</text>`).join('')}
+  </svg>`;
+}
+function legend(p){ const f=figureValues(p); const u=p.unit; const row=(n,v,e)=>`<span>${n}</span><span>${fromCm(v,u)} ${u}${e?' <span class="est">est.</span>':''}</span>`;
+  return `<div class="legend"><span>Height</span><span>${ftin(f.H)} · ${Math.round(f.H)} cm</span>${row('Bust',f.b,f.est.b)}${row('Waist',f.w,f.est.w)}${row('Hips',f.h,f.est.h)}</div>
+  <p class="small muted" style="text-align:center">${f.est.b||f.est.w||f.est.h?'Dashed outline = estimated from body type or photo.':'Drawn from your measurements.'}</p>`; }
+function refreshFigure(){ const el=$('#fig'); if(el) el.innerHTML = figure(draft) + legend(draft); }
+
+/* ---------- 1. Profile ---------- */
+function viewProfile(){
+  nav('check'); draft = JSON.parse(JSON.stringify(profile || DEFAULT)); const p=draft;
+  const widths = p.gender==='Male' ? ['Narrow (B)','Standard (D)','Wide (2E)','Extra wide (4E)'] : ['Narrow (2A)','Standard (B)','Wide (D)','Extra wide (2E)'];
+  const wSel = widths.find(w=>w.startsWith(p.width)) || widths[1];
+  const mf = k => { const e=p.m[k]; return `<div class="field">${lab(k, LABEL[k]+(e&&e.est?` <span class="est">est. ±${fromCm(e.r,p.unit)} ${p.unit}</span>`:''), 'm_'+k)}
+    <div class="unit"><input id="m_${k}" inputmode="decimal" placeholder="e.g. ${fromCm(EX[k],p.unit)}" value="${e?fromCm(e.v,p.unit):''}" data-est="${e&&e.est?1:0}"><span>${p.unit}</span></div><span class="err" id="e_${k}" hidden></span></div>`; };
+  const anyOpt = Object.keys(p.m).length || p.bra.band || p.anchor.brand || p.torso || p.shoulders || p.heel;
+  app.innerHTML = `<div class="stack">
+    ${returnToResults?topBar('Results', true):topBar('', false, 1)}
+    ${store.get('introSeen',false)?'':`<div class="intro col" id="intro"><p class="lab">How Fit Check works</p><ol><li>Tell us your size, height and shoe size.</li><li>Upload the Amazon dress page and its reviews.</li><li>Get a clear fit call based on shoppers like you.</li></ol><div class="actions"><button type="button" class="btn btn-secondary" id="gotIt">Got it</button></div></div>`}
+    <div><h1>Your fit profile</h1><p class="muted">Only the basics are required. We’ll ask for more only if a dress needs it.</p></div>
+    <div class="grid2">
+    <form class="card" id="pf" novalidate>
+      <div class="row">
+        <div class="field">${lab('gender','Gender','g',true)}<select id="g">${opts(['Female','Male','Non-binary','Prefer not to say'],p.gender)}</select></div>
+        <div class="field">${lab('size','Usual dress size','s',true)}<select id="s">${opts(['XS','S','M','L','XL','XXL'],p.size)}</select></div>
+      </div>
+      <div class="field">${lab('height','Height',null,true)}
+        <div class="dial"><button type="button" id="hDown" aria-label="Height down 1 cm">−</button><output id="hOut" aria-live="polite">${ftin(p.height)}<small>${p.height} cm</small></output><button type="button" id="hUp" aria-label="Height up 1 cm">+</button></div>
+        <input type="range" id="h" min="140" max="200" step="1" value="${p.height}" aria-labelledby="l_height"></div>
+      <div class="row">
+        <div class="field">${lab('shoe','Shoe size (US)','sh',true)}<select id="sh">${opts(['5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11','12','13'],p.shoe)}</select></div>
+        <div class="field"><span class="lab">Width</span>${seg('width', widths, wSel, 'Shoe width')}</div>
+      </div>
+      <div class="field">${lab('body','Body type',null,false)}
+        <div class="bodycards" role="radiogroup" aria-labelledby="l_body">${Object.keys(BODY).map(t=>`<label><input type="radio" name="body" value="${t}" ${p.body===t?'checked':''}>${mini(t)}${t}</label>`).join('')}
+        <label><input type="radio" name="body" value="Not sure" ${p.body==='Not sure'?'checked':''}><svg viewBox="0 0 38 56" aria-hidden="true"><text x="19" y="34" text-anchor="middle" font-size="20" fill="currentColor">?</text></svg>Not sure</label></div></div>
+      <details class="opt" ${anyOpt?'open':''}><summary>More accurate results (optional)</summary>
+      <div class="stack" style="gap:16px;margin-top:14px">
+        <div class="warn-top"><span class="small muted">Units for measurements</span>${seg('unit',['cm','in'],p.unit,'Units')}</div>
+        <div class="row">${mf('bust')}${mf('waist')}</div>
+        <div class="row">${mf('hips')}${mf('inseam')}</div>
+        <div class="field">${lab('bra','Bra size',null,false)}<div class="row"><select id="band" aria-label="Band">${opts(['Band','28','30','32','34','36','38','40','42','44'],p.bra.band||'Band')}</select><select id="cup" aria-label="Cup">${opts(['Cup','A','B','C','D','DD','E','F','G'],p.bra.cup||'Cup')}</select></div></div>
+        <div class="field">${lab('anchor','A brand that fits you well','ab',false)}<div class="row"><input type="text" id="ab" placeholder="e.g. Zara" value="${esc(p.anchor.brand)}"><select id="as" aria-label="Your size in that brand">${opts(['Size there','XS','S','M','L','XL','XXL'],p.anchor.size||'Size there')}</select></div></div>
+        <div class="field">${lab('torso','Torso length',null,false)}${seg('torso',['Short','Average','Long'],p.torso,'Torso length')}</div>
+        <div class="field">${lab('shoulders','Shoulder width',null,false)}${seg('shoulders',['Narrow','Average','Broad'],p.shoulders,'Shoulder width')}</div>
+        <div class="field">${lab('heel','Heel height you usually wear',null,false)}${seg('heel',['Flats','Low','Mid','High'],p.heel,'Heel height')}</div>
+        <div class="field">${lab('pref','Fit you like',null,false)}${seg('pref',['Snug','Regular','Relaxed'],p.pref,'Fit preference')}</div>
+        <label class="radio"><input type="checkbox" id="sens" ${p.sensitive?'checked':''}> Sensitive to itchy or sheer fabrics <button type="button" class="info" aria-label="About fabric sensitivity" aria-expanded="false" aria-controls="i_sensitive">i</button></label>
+        <p class="infotext" id="i_sensitive" hidden>${esc(INFO.sensitive)}</p>
+        <div class="suggest" id="photoArea">
+          ${lab('photo','Fill blanks from a photo',null,false)}
+          <p class="small muted">Full body, facing the camera, fitted clothes, plain background, good light.</p>
+          <label class="radio" style="border:0;padding:0;background:none"><input type="checkbox" id="consent"> I agree: the photo is analysed once, then deleted. 18+ only.</label>
+          <div class="actions"><label class="btn btn-secondary" for="ph">Take or upload photo</label><input type="file" id="ph" accept="image/*" capture="environment" hidden></div>
+          <span class="err" id="phErr" hidden></span></div>
+      </div></details>
+      <div class="actions"><button class="btn btn-primary" type="submit">Save and continue</button></div>
+    </form>
+    <aside class="figpanel"><div class="figcard"><p class="lab" style="align-self:flex-start">You, as we understand</p><div id="fig" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px"></div></div></aside>
+    </div></div>`;
+  wireInfo(); refreshFigure();
+  if(returnToResults) wireBack(()=>{ returnToResults=false; viewResults(); });
+  const gi=$('#gotIt'); if(gi) gi.onclick=()=>{ store.set('introSeen',true); $('#intro').remove(); };
+  const setH = v => { v=Math.max(140,Math.min(200,v)); draft.height=v; $('#h').value=v; $('#hOut').innerHTML=`${ftin(v)}<small>${v} cm</small>`; refreshFigure(); };
+  $('#h').oninput = e => setH(+e.target.value); $('#hDown').onclick=()=>setH(draft.height-1); $('#hUp').onclick=()=>setH(draft.height+1);
+  const rerender = () => { readMeasures(true); collect(); const keep=returnToResults, sv=profile; profile=draft; viewProfile(); profile=sv; returnToResults=keep; };
+  $('#g').onchange = rerender;
+  app.querySelectorAll('input[name=body]').forEach(r=>r.onchange=()=>{ draft.body=r.value; refreshFigure(); });
+  app.querySelectorAll('input[name=shoulders],input[name=torso]').forEach(r=>r.onchange=()=>{ draft[r.name]=r.value; refreshFigure(); });
+  app.querySelectorAll('input[name=unit]').forEach(r=>r.onchange=()=>{ readMeasures(true); collect(); draft.unit=r.value; const keep=returnToResults, sv=profile; profile=draft; viewProfile(); profile=sv; returnToResults=keep; });
+  Object.keys(RANGES).forEach(k=>{ $('#m_'+k).oninput=()=>{ readMeasures(true); refreshFigure(); }; });
+  $('#ph').onchange = photoEstimate;
+  $('#pf').onsubmit = e => { e.preventDefault(); if(!readMeasures()) { toast('Fix the highlighted measurements'); return; } collect();
+    profile = draft; store.set('profile4', profile); toast('Profile saved on this device');
+    if(returnToResults){ returnToResults=false; profileChanged=true; viewResults(); } else viewUpload(); };
+}
+function readMeasures(quiet){ const u=draft.unit; let ok=true;
+  for(const k of Object.keys(RANGES)){ const el=$('#m_'+k), er=$('#e_'+k); if(!el) continue; er.hidden=true; const raw=el.value.trim();
+    if(!raw){ delete draft.m[k]; continue; }
+    const v=toCm(parseFloat(raw),u); const [lo,hi]=RANGES[k];
+    if(isNaN(v)||v<lo||v>hi){ if(!quiet){ er.textContent=`Enter ${fromCm(lo,u)}–${fromCm(hi,u)} ${u}`; er.hidden=false; } ok=false; continue; }
+    const prev=draft.m[k]; draft.m[k] = (el.dataset.est==='1' && prev && Math.abs(prev.v-v)<1.5) ? prev : {v, est:false}; }
+  return ok; }
+function collect(){ const val=n=>{ const r=document.querySelector(`input[name=${n}]:checked`); return r?r.value:''; };
+  draft.gender=$('#g').value; draft.size=$('#s').value; draft.shoe=$('#sh').value; draft.width=(val('width')||'Standard').split(' (')[0];
+  draft.body=val('body')||'Not sure'; draft.torso=val('torso'); draft.shoulders=val('shoulders'); draft.heel=val('heel'); draft.pref=val('pref')||'Regular';
+  draft.bra={band:$('#band').value==='Band'?'':$('#band').value, cup:$('#cup').value==='Cup'?'':$('#cup').value};
+  draft.anchor={brand:$('#ab').value.trim().slice(0,40), size:$('#as').value==='Size there'?'':$('#as').value}; draft.sensitive=$('#sens').checked; }
+function photoEstimate(){
+  const er=$('#phErr'); er.hidden=true;
+  if(!$('#consent').checked){ er.textContent='Tick the consent box first.'; er.hidden=false; $('#ph').value=''; return; }
+  readMeasures(true); collect();
+  $('#photoArea').innerHTML='<p class="small">Analysing photo…</p>';
+  setTimeout(()=>{ const guess={bust:{v:91,r:4},waist:{v:75,r:4},hips:{v:101,r:4},inseam:{v:77,r:3}}; const filled=[];
+    for(const k in guess){ if(!draft.m[k]){ draft.m[k]={v:guess[k].v,r:guess[k].r,est:true}; filled.push(LABEL[k]); } }
+    if(draft.body==='Not sure'){ draft.body='Pear'; filled.push('Body type'); }
+    const keep=returnToResults, sv=profile; profile=draft; viewProfile(); profile=sv; returnToResults=keep;
+    document.querySelector('details.opt').open=true;
+    $('#photoArea').innerHTML=`<p><b>Filled from photo:</b> ${filled.length?esc(filled.join(', ')):'nothing; every field was already set'}</p><p class="small muted">Photo deleted. Estimates are marked “est.” with a range. Edit any of them.</p>`;
+  }, 1400);
+}
+
+/* ---------- 2. Upload ---------- */
+function viewUpload(){
+  nav('check'); if(!profile){ viewProfile(); return; }
+  app.innerHTML=`<div class="stack col">${topBar('Profile', true, 2)}
+    <div><h1>Upload the dress</h1><p class="muted">A PDF or screenshot of the Amazon product page, plus 2–3 review pages filtered to your size.</p></div>
+    <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
+    <label class="drop" id="drop" for="fi"><b>Drop files here</b><br><span class="small muted">or click to choose · PDF, PNG, JPG · up to 10 files</span></label>
+    <input type="file" id="fi" multiple accept=".pdf,image/*" hidden><ul class="files" id="fl"></ul>
+    <div class="actions"><button class="btn btn-primary" id="go" disabled>Analyze</button><button class="btn btn-ghost" id="sample">Use sample files</button></div></div>`;
+  wireBack(viewProfile); $('#editP').onclick=viewProfile;
+  const render=()=>{ $('#fl').innerHTML=files.map((f,i)=>`<li><span>${esc(f)}</span><button class="btn btn-ghost" style="min-height:0;padding:0" data-i="${i}" aria-label="Remove ${esc(f)}">Remove</button></li>`).join('');
+    $('#go').disabled=!files.length; $('#fl').querySelectorAll('button').forEach(b=>b.onclick=()=>{ files.splice(+b.dataset.i,1); render(); }); };
+  const add=l=>{ for(const f of l){ if(files.length<10) files.push(f.name||f); } render(); };
+  $('#fi').onchange=e=>add(e.target.files);
+  const d=$('#drop'); d.ondragover=e=>{e.preventDefault();d.classList.add('over');}; d.ondragleave=()=>d.classList.remove('over'); d.ondrop=e=>{e.preventDefault();d.classList.remove('over');add(e.dataTransfer.files);};
+  $('#sample').onclick=()=>{ files=['lunaria-wrap-dress.pdf','reviews-size-M-page1.png','reviews-size-M-page2.png']; render(); };
+  $('#go').onclick=()=>viewWorking('results'); render();
+}
+
+/* ---------- 3. Working ---------- */
+function viewWorking(outcome){
+  nav('check'); cancelled=false; answered={};
+  const steps=[['Reading the page','4.1s'],['Checking the brand','9.8s'],['Matching reviews like you','5.6s'],['Deciding the fit call','1.9s']];
+  app.innerHTML=`<div class="stack col">${topBar('Cancel', true, 3)}
+    <div><h1>Checking this dress</h1><p class="muted" id="eta">About 20 seconds left. You can cancel any time.</p></div>
+    <div class="card"><ul class="steps">${steps.map((s,i)=>`<li id="s${i}"><span class="dot"></span><span>${s[0]}</span><span class="num"></span></li>`).join('')}</ul>
+    <p class="note" id="sw" hidden>Search tool didn’t answer. Switched to backup.</p></div></div>`;
+  wireBack(()=>{ cancelled=true; toast('Check cancelled'); viewUpload(); });
+  const mark=(i,st)=>{ if(cancelled) return; const li=$('#s'+i); if(!li) return; li.className=st; if(st==='done'){ li.querySelector('.dot').textContent='✓'; li.querySelector('.num').textContent=steps[i][1]; } };
+  const f=matchMedia('(prefers-reduced-motion: reduce)').matches?150:700; const later=(ms,fn)=>setTimeout(()=>{ if(!cancelled) fn(); },ms);
+  mark(0,'run');
+  later(f,()=>{ mark(0,'done'); if(outcome==='unreadable'){ viewUnreadable(); return; }
+    mark(1,'run'); mark(2,'run'); later(f*0.8,()=>{ const s=$('#sw'); if(s) s.hidden=false; });
+    later(f*1.4,()=>mark(2,'done')); later(f*2,()=>{ mark(1,'done'); mark(3,'run'); const e=$('#eta'); if(e) e.textContent='Almost done.'; });
+    later(f*2.7,()=>{ mark(3,'done'); later(f*0.5,()=> outcome==='thin'?viewThin():saveAndShow()); }); });
+}
+function saveAndShow(){ profileChanged=false; const h=store.get('history',[]);
+  current={id:Date.now(), date:new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'}), product:SAMPLE.product, brand:SAMPLE.brand, call:callFor().word, feedback:null};
+  h.unshift(current); store.set('history',h.slice(0,30)); viewResults(); }
+
+/* ---------- 4. Results ---------- */
+const confWord=c=>c>=90?'Very high':c>=70?'High':c>=50?'Medium':'Low';
+const meter=c=>{ const on=c>=90?4:c>=70?3:c>=50?2:1; return `<span class="meter" title="How sure the agent is, out of 100" aria-label="${confWord(c)} confidence, ${c} out of 100">${[0,1,2,3].map(i=>`<i class="${i<on?'on':''}"></i>`).join('')}<span class="conf-txt">${confWord(c)} · ${c}</span></span>`; };
+const warnCard=w=>`<div class="warn"><div class="warn-top"><span class="warn-title">${esc(w.chip)}</span><span class="tag ${w.tag==='Recurring'?'rec':''}">${w.tag}</span></div>
+  <div class="warn-top"><span class="small muted">${esc(w.count)}</span>${meter(w.conf)}</div>
+  <details><summary>See what they said</summary><div class="stack" style="gap:8px;margin-top:8px">${w.quotes.map(q=>`<blockquote>${esc(q)}</blockquote>`).join('')}</div></details></div>`;
+function band(k,v){ const hit=['S','M','L','XL'].filter(s=>v>=CHART[s][k][0]&&v<=CHART[s][k][1]); if(!hit.length) return null; const s=hit[0],[lo,hi]=CHART[s][k]; return {s,two:hit.length>1?hit.join('/'):null,edge:(v-lo<1||hi-v<1)}; }
+function sizeTable(){ const u=profile.unit, m=profile.m;
+  const rows=['bust','waist','hips'].filter(k=>m[k]).map(k=>{ const e=m[k], b=band(k,e.v);
+    return `<tr><td>${LABEL[k]}</td><td>${fromCm(e.v,u)} ${u}${e.est?' <span class="est">est.</span>':''}</td><td>${b?(b.two?`${b.two} boundary`:`${b.s} (${CHART[b.s][k].map(x=>fromCm(x,u)).join('–')})${b.edge?' · at the edge':''}`):'Outside chart'}</td></tr>`; });
+  if(!rows.length) return '';
+  return `<div class="card" style="gap:8px"><p class="lab">Your measurements vs. Lunaria’s size chart</p><div style="overflow-x:auto"><table class="cmp"><thead><tr><th>Area</th><th>You</th><th>Chart size</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <p class="small muted">From the size chart on the page you uploaded. “est.” values came from your photo.</p></div>`; }
+function asks(){ // follow-up questions only when reviews need data the profile lacks
+  const q=[]; const p=profile; const areas=SAMPLE.warnings.map(w=>w.area).concat(SAMPLE.unconfirmed.map(w=>w.area));
+  if(areas.includes('bust') && !p.bra.band && !(p.m.bust&&!p.m.bust.est) && !answered.bra) q.push({id:'bra', text:'Reviewers say the bust runs tight. Add your bra size to sharpen this.',
+    field:`<div class="row"><select id="qband" aria-label="Band">${opts(['Band','28','30','32','34','36','38','40','42','44'],'Band')}</select><select id="qcup" aria-label="Cup">${opts(['Cup','A','B','C','D','DD','E','F','G'],'Cup')}</select></div>`});
+  if(areas.includes('length') && !p.heel && !answered.heel) q.push({id:'heel', text:'Reviewers say it runs long. What heel height would you wear with it?', field:seg('qheel',['Flats','Low','Mid','High'],'','Heel height')});
+  if(areas.includes('fabric') && !p.sensitive && !answered.sens) q.push({id:'sens', text:'A few reviewers found it slightly sheer. Does that matter to you?', field:seg('qsens',['Yes','No'],'','Sheer fabric matters')});
+  return q.slice(0,2); }
+function callFor(){ const p=profile; let word='Check first', cls='check', why=`Likely tight in the bust in your usual ${p.size}`;
+  if(p.heel==='Flats') why += ', and long in flats';
+  if(['A','B','C'].includes(p.bra.cup)){ word='Good fit'; cls='good'; why=`With a ${p.bra.band}${p.bra.cup} bust, your usual ${p.size} should fit; length runs long`; }
+  if(['DD','E','F','G'].includes(p.bra.cup)){ word='Poor fit'; cls='poor'; why=`With a ${p.bra.band}${p.bra.cup} bust and no stretch, your usual ${p.size} is likely too tight`; }
+  return {word, cls, why}; }
+const ICON={good:'<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="var(--success)" stroke-width="2.5"/><path d="M9 16.5l4.5 4.5L23 11" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check:'<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3L30 28H2z" fill="none" stroke="var(--warning)" stroke-width="2.5" stroke-linejoin="round"/><path d="M16 12v7M16 23v.5" stroke="var(--warning)" stroke-width="2.5" stroke-linecap="round"/></svg>',
+  poor:'<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="var(--danger)" stroke-width="2.5"/><path d="M11 11l10 10M21 11L11 21" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round"/></svg>'};
+function viewResults(){
+  nav('check'); const r=SAMPLE, t=r.tolerance, c=callFor(), q=asks();
+  app.innerHTML=`<div class="stack col">${topBar('Upload', true, 3)}
+    <div><p class="eyebrow">${esc(r.brand)} · sold by ${esc(r.seller)}</p><h1>${esc(r.product)}</h1><p class="muted small">Based on ${r.similar} reviews from shoppers like you (${r.total} reviews read).</p></div>
+    <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
+    ${profileChanged?`<div class="notice"><span>Profile changed. Results still use the old profile.</span><button class="btn btn-secondary" id="rerun">Check again</button></div>`:''}
+    <div class="call ${c.cls}" role="status">${ICON[c.cls]}<div><p class="eyebrow">Fit call for your usual ${esc(profile.size)}</p><p class="word">${c.word}</p><p>${esc(c.why)}.</p></div></div>
+    ${q.map(x=>`<div class="ask" data-q="${x.id}"><p>${esc(x.text)}</p>${x.field}<div class="actions"><button class="btn btn-secondary" data-ans="${x.id}">Update the call</button><button class="btn btn-ghost" data-skip="${x.id}">Skip</button></div></div>`).join('')}
+    <p class="sec">Fit for you</p>
+    <div class="stack" style="gap:10px">${r.warnings.map(warnCard).join('')}</div>
+    ${sizeTable()}
+    <div class="card" style="gap:6px"><div class="warn-top"><h2>Fit tolerance: ${t.level}</h2>${meter(t.conf)}</div>
+      <p class="small">${esc(t.reason)}${profile.pref==='Relaxed'?' You like a relaxed fit, so a tight size will feel tighter.':profile.pref==='Snug'?' You like a snug fit; there’s no stretch to absorb a smaller size.':''}</p>
+      <blockquote>${esc(t.evidence)}</blockquote><p class="small muted">How forgiving the dress is if your size is slightly off.</p></div>
+    <div class="card" style="gap:6px"><p class="lab">Shoppers like you</p><p>${esc(r.likeYou)}</p><p class="small muted">What they did. The call above is about your usual size.</p></div>
+    <p class="sec">Brand and seller</p>
+    <div class="card" style="gap:6px"><p class="lab">Last 6 months</p><p>${esc(r.brandLine)}</p><p class="src">${r.brandSrc.map(esc).join(' · ')}</p></div>
+    <details class="card"><summary>Unconfirmed (${r.unconfirmed.length})</summary><p class="small muted" style="margin-top:8px">Too few mentions or low confidence to count toward the call.</p>${r.unconfirmed.map(warnCard).join('')}</details>
+    <details><summary>What do these mean?</summary><div class="help">
+      <p><b>Good fit / Check first / Poor fit:</b> how likely your usual size fits, from reviews by shoppers like you and the brand’s size chart.</p>
+      <p><b>Recurring:</b> at least 5 shoppers like you, and 15% or more of them, said it. <b>Isolated:</b> fewer said it.</p>
+      <p><b>Confidence:</b> how sure the agent is, out of 100. Below 70 never counts toward the call.</p>
+      <p><b>Fit tolerance:</b> how forgiving the dress is if your size is slightly off.</p></div></details>
+    <div class="actions"><button class="btn btn-secondary" id="up">Helpful</button><button class="btn btn-secondary" id="fb">Report a problem</button><button class="btn btn-primary" id="again">Check another dress</button></div>
+    <details class="demo"><summary>Demo panel: tools and timing</summary><table>${r.tools.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td class="num">${x[2]}</td></tr>`).join('')}</table></details></div>`;
+  wireBack(viewUpload); $('#editP').onclick=()=>{ returnToResults=true; viewProfile(); };
+  const rr=$('#rerun'); if(rr) rr.onclick=()=>{ profileChanged=false; viewWorking('results'); };
+  app.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>{ answered[b.dataset.skip]=true; viewResults(); });
+  app.querySelectorAll('[data-ans]').forEach(b=>b.onclick=()=>{ const id=b.dataset.ans;
+    if(id==='bra'){ const bd=$('#qband').value, cp=$('#qcup').value; if(bd==='Band'||cp==='Cup'){ toast('Pick both band and cup'); return; } profile.bra={band:bd,cup:cp}; }
+    if(id==='heel'){ const v=document.querySelector('input[name=qheel]:checked'); if(!v){ toast('Pick a heel height'); return; } profile.heel=v.value; }
+    if(id==='sens'){ const v=document.querySelector('input[name=qsens]:checked'); if(!v){ toast('Pick yes or no'); return; } profile.sensitive=v.value==='Yes'; }
+    answered[id]=true; store.set('profile4',profile); viewResults(); toast('Fit call updated with your answer'); });
+  $('#up').onclick=()=>{ setFeedback({type:'helpful'}); toast('Thanks. Saved with this check.'); };
+  $('#fb').onclick=viewFeedback; $('#again').onclick=()=>{ files=[]; viewUpload(); };
+}
+function setFeedback(f){ if(!current) return; const h=store.get('history',[]); const it=h.find(x=>x.id===current.id); if(it){ it.feedback=f; store.set('history',h); } current.feedback=f; }
+
+/* ---------- 5. Feedback ---------- */
+function viewFeedback(){
+  nav('check'); const ch=['The fit call was wrong','A warning was wrong','It missed a problem','Fit tolerance was wrong','Size chart comparison was wrong','Brand line was wrong','Other'];
+  app.innerHTML=`<div class="stack col">${topBar('Results', true)}<div><h1>What was wrong?</h1><p class="muted">Saved with this check. The team reviews reports before they change how the agent works.</p></div>
+    <form class="card" id="ff"><fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend class="lab" style="margin-bottom:8px">Pick one</legend>
+    ${ch.map((c,i)=>`<label class="radio"><input type="radio" name="why" value="${c}" ${i===0?'checked':''}> ${c}</label>`).join('')}</fieldset>
+    <div class="field"><label class="lab" for="det">Details</label><textarea id="det" maxlength="1000" placeholder="e.g. Bust fit fine on me; the length was the real issue."></textarea></div>
+    <div class="field"><label class="lab" for="kept">Size you kept (optional)</label><select id="kept">${opts(['—','XS','S','M','L','XL','XXL'],'—')}</select></div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Send report</button></div></form></div>`;
+  wireBack(viewResults);
+  $('#ff').onsubmit=e=>{ e.preventDefault(); setFeedback({type:'problem',why:document.querySelector('input[name=why]:checked').value,details:$('#det').value,kept:$('#kept').value}); toast('Report saved with this check'); viewResults(); };
+}
+
+/* ---------- States ---------- */
+function viewUnreadable(){ nav('check'); app.innerHTML=`<div class="stack col">${topBar('Upload', true, 2)}<div><h1>We couldn’t read this page</h1></div>
+  <div class="alert"><b>Reviews are cut off in the screenshot.</b><p class="small">Upload a clearer PDF of the page, or type your size and we’ll use what we could read.</p></div>
+  <div class="actions"><button class="btn btn-primary" id="re">Upload again</button></div></div>`; wireBack(viewUpload); $('#re').onclick=viewUpload; }
+function viewThin(){ nav('check'); app.innerHTML=`<div class="stack col">${topBar('Upload', true, 3)}<div><p class="eyebrow">${esc(SAMPLE.brand)}</p><h1>Not enough evidence yet</h1></div>
+  <div class="alert"><b>Only 6 reviews from shoppers like you.</b><p class="small">We need at least 10 to make a fit call. Upload more review pages filtered to size ${esc(profile.size)}.</p></div>
+  <div class="actions"><button class="btn btn-primary" id="more">Add review pages</button></div></div>`; wireBack(viewUpload); $('#more').onclick=viewUpload; }
+
+/* ---------- 6. History ---------- */
+function viewHistory(){
+  nav('history'); const h=store.get('history',[]);
+  app.innerHTML=`<div class="stack col">${topBar('Back', true)}<div><p class="eyebrow">This device only</p><h1>Past checks</h1></div>
+    ${h.length?`<ul class="hist">${h.map(x=>`<li><div><b>${esc(x.product)}</b><p class="small muted">${esc(x.date)} · ${esc(x.call||x.top||'')}${x.feedback?' · '+(x.feedback.type==='helpful'?'marked helpful':'problem reported'):''}</p></div>
+      <div class="actions"><button class="btn btn-ghost" data-open="${x.id}">Open</button><button class="btn btn-ghost" data-del="${x.id}">Delete</button></div></li>`).join('')}</ul>
+      <div class="actions"><button class="btn btn-secondary" id="clr">Clear all</button></div>`
+    :`<div class="card"><p>No checks yet.</p><p class="small muted">Results you run are saved here on this device, so you can reopen them without running again.</p><div class="actions"><button class="btn btn-primary" id="first">Check a dress</button></div></div>`}</div>`;
+  wireBack(()=>prevView?prevView():viewUpload());
+  app.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ current=h.find(x=>x.id==b.dataset.open); viewResults(); });
+  app.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const before=h.slice(); store.set('history',h.filter(x=>x.id!=b.dataset.del)); viewHistory(); toast('Check deleted',()=>{ store.set('history',before); viewHistory(); }); });
+  const c=$('#clr'); if(c) c.onclick=()=>{ const before=h.slice(); store.set('history',[]); viewHistory(); toast('History cleared',()=>{ store.set('history',before); viewHistory(); }); };
+  const f=$('#first'); if(f) f.onclick=()=>profile?viewUpload():viewProfile();
+}
+
+
+/* ---------- 7. Settings: AI agents share one key; web tools have their own ---------- */
+const PROV = {
+  gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
+  groq:{n:'Groq', url:'https://console.groq.com/keys', m:['llama-3.3-70b-versatile']},
+  openrouter:{n:'OpenRouter', url:'https://openrouter.ai/keys', m:['nvidia/nemotron-3-ultra-550b-a55b:free']},
+  mistral:{n:'Mistral', url:'https://console.mistral.ai/api-keys', m:['mistral-small-latest']},
+  cohere:{n:'Cohere', url:'https://dashboard.cohere.com/api-keys', m:['command-a-03-2025']},
+  deepseek:{n:'DeepSeek', url:'https://platform.deepseek.com/api_keys', m:['deepseek-chat'], paid:1},
+  together:{n:'Together AI', url:'https://api.together.ai/settings/api-keys', m:[], paid:1},
+  fireworks:{n:'Fireworks AI', url:'https://fireworks.ai/account/api-keys', m:[], paid:1},
+  openai:{n:'OpenAI', url:'https://platform.openai.com/api-keys', m:[], paid:1},
+  anthropic:{n:'Anthropic', url:'https://console.anthropic.com/settings/keys', m:['claude-haiku-5-5'], paid:1},
+  tavily:{n:'Tavily', url:'https://app.tavily.com'}, exa:{n:'Exa', url:'https://dashboard.exa.ai/api-keys'}, serper:{n:'Serper', url:'https://serper.dev/api-key'},
+  jina:{n:'Jina', url:'https://jina.ai/api-dashboard'}, linkup:{n:'Linkup', url:'https://app.linkup.so'}, firecrawl:{n:'Firecrawl', url:'https://www.firecrawl.dev/app/api-keys'},
+  webscrapingai:{n:'WebScraping.AI', url:'https://webscraping.ai/dashboard'}, scraperapi:{n:'ScraperAPI', url:'https://dashboard.scraperapi.com'}, microlink:{n:'Microlink', url:'https://microlink.io'}
+};
+const AI_PROVS = ['gemini','groq','openrouter','mistral','cohere','deepseek','together','fireworks','openai','anthropic'];
+const AI_AGENTS = [
+  {id:'reader', name:'Reader', job:'Reads the product page and reviews you upload. Needs a model that reads images.', rec:'gemini-3.5-flash', tested:''},
+  {id:'analyst', name:'Analyst', job:'Finds reviews from shoppers like you and their fit issues. Also summarises web results.', rec:'gemini-3.5-flash', tested:''},
+  {id:'decider', name:'Decider', job:'Decides what the results screen shows.', rec:'gemini-3.5-flash', tested:'Tested 10/10 · Almir, Nov 12'}];
+const WEB_AGENTS = [
+  {id:'search', name:'Web search', job:'Finds brand and seller posts from the last 6 months.', rec:'tavily', opts:['tavily','exa','serper','jina','linkup']},
+  {id:'scrape', name:'Web scraper', job:'Opens the pages search found and pulls out the text.', rec:'firecrawl', opts:['firecrawl','jina','webscrapingai','scraperapi','microlink']}];
+const CFG0 = {same:true, prov:'gemini', model:{}, aprov:{}, web:{}, keys:{}};
+const getCfg = () => Object.assign(JSON.parse(JSON.stringify(CFG0)), store.get('keys2', {}));
+const pv = k => `${esc(PROV[k].n)}${PROV[k].paid?' (paid)':''}`;
+function modelCell(a, prov, cfg){
+  const list = PROV[prov].m, v = cfg.model[a.id] || (prov==='gemini'?a.rec:list[0]||'');
+  const other = v && !list.includes(v);
+  return `<select data-model="${a.id}" aria-label="${a.name} model">${list.map(m=>`<option ${m===v?'selected':''}>${esc(m)}</option>`).join('')}<option value="__other" ${other||!list.length?'selected':''}>Other model…</option></select>
+    <input type="text" data-other="${a.id}" placeholder="Type the model name" value="${other?esc(v):''}" ${other||!list.length?'':'hidden'} style="margin-top:6px">
+    ${prov==='gemini'&&v===a.rec?(a.tested?`<span class="badge ok">${esc(a.tested)}</span>`:'<span class="badge">★ Recommended · not tested yet</span>'):''}`; }
+function keyCell(slot, prov, cfg, label){ return `<div class="kwrap"><input type="password" data-key="${slot}" placeholder="Paste ${esc(PROV[prov].n)} key" value="${esc(cfg.keys[slot]||'')}" autocomplete="off" aria-label="${esc(label)} key"><button type="button" data-show="${slot}">Show</button></div>
+  <a href="${PROV[prov].url}" target="_blank" rel="noopener">Get a ${esc(PROV[prov].n)} key ↗</a>`; }
+function viewSettings(){
+  nav('settings'); const cfg = getCfg();
+  const aiRows = AI_AGENTS.map(a=>{ const prov = cfg.same ? cfg.prov : (cfg.aprov[a.id]||'gemini');
+    return `<tr><td><b>${a.name}</b><p class="small muted">${esc(a.job)}</p></td>
+      ${cfg.same?'':`<td><select data-aprov="${a.id}" aria-label="${a.name} provider">${AI_PROVS.map(k=>`<option value="${k}" ${k===prov?'selected':''}>${pv(k)}</option>`).join('')}</select></td>`}
+      <td>${modelCell(a, prov, cfg)}</td>${cfg.same?'':`<td>${keyCell('ai|'+a.id, prov, cfg, a.name)}</td>`}</tr>`; }).join('');
+  app.innerHTML = `<div class="stack">${topBar('Back', true)}
+    <div><h1>Settings</h1><p class="muted">Comes set to the recommended models. Add your keys. Keys stay in this browser only and go only to the provider you pick.</p></div>
+    <div class="card">
+      <div><h2>AI agents</h2><p class="small muted">Reader, Analyst and Decider can share one provider and one key.</p></div>
+      <label class="radio" style="border:0;padding:0"><input type="checkbox" id="same" ${cfg.same?'checked':''}> Use one provider and one key for all AI agents</label>
+      ${cfg.same?`<div class="row"><div class="field"><span class="lab">Provider</span><select id="prov">${AI_PROVS.map(k=>`<option value="${k}" ${k===cfg.prov?'selected':''}>${pv(k)}${k==='gemini'?' ★':''}</option>`).join('')}</select></div>
+        <div class="field"><span class="lab">Key</span>${keyCell('ai', cfg.prov, cfg, 'AI')}</div></div>`:''}
+      <table class="keys"><thead><tr><th>Agent</th>${cfg.same?'':'<th>Provider</th>'}<th>Model</th>${cfg.same?'':'<th>Key</th>'}</tr></thead><tbody>${aiRows}</tbody></table>
+      <p class="small muted">If a model is busy (error 503), the app retries once.</p>
+    </div>
+    <div class="card">
+      <div><h2>Web search and scraping</h2><p class="small muted">Separate tools with their own keys.</p></div>
+      <table class="keys"><thead><tr><th>Agent</th><th>Tool</th><th>Key</th></tr></thead><tbody>
+      ${WEB_AGENTS.map(a=>{ const t=cfg.web[a.id]||a.rec; return `<tr><td><b>${a.name}</b><p class="small muted">${esc(a.job)}</p></td>
+        <td><select data-web="${a.id}" aria-label="${a.name} tool">${a.opts.map(k=>`<option value="${k}" ${k===t?'selected':''}>${pv(k)}${k===a.rec?' ★':''}</option>`).join('')}</select>${t===a.rec?'<span class="badge">★ Recommended · not tested yet</span>':''}</td>
+        <td>${keyCell('web|'+t, t, cfg, a.name)}</td></tr>`; }).join('')}
+      </tbody></table></div>
+    <div class="actions"><button class="btn btn-primary" id="saveK">Save</button><button class="btn btn-ghost" id="clrK">Clear all keys</button></div></div>`;
+  wireBack(()=>profile?viewUpload():viewProfile());
+  const read = () => {
+    app.querySelectorAll('[data-key]').forEach(i=>{ const k=i.value.trim(); if(k) cfg.keys[i.dataset.key]=k; else delete cfg.keys[i.dataset.key]; });
+    app.querySelectorAll('[data-model]').forEach(s=>{ const id=s.dataset.model; cfg.model[id] = s.value==='__other' ? app.querySelector(`[data-other="${id}"]`).value.trim() : s.value; });
+    app.querySelectorAll('[data-aprov]').forEach(s=>cfg.aprov[s.dataset.aprov]=s.value);
+    app.querySelectorAll('[data-web]').forEach(s=>cfg.web[s.dataset.web]=s.value);
+    const pr=$('#prov'); if(pr) cfg.prov=pr.value; };
+  const redraw = () => { read(); store.set('keys2',cfg); viewSettings(); };
+  $('#same').onchange = () => { read(); cfg.same=$('#same').checked; if(!cfg.same) AI_AGENTS.forEach(a=>{ cfg.aprov[a.id]=cfg.prov; if(cfg.keys.ai) cfg.keys['ai|'+a.id]=cfg.keys.ai; }); store.set('keys2',cfg); viewSettings(); };
+  const pr=$('#prov'); if(pr) pr.onchange = () => { read(); cfg.model={}; store.set('keys2',cfg); viewSettings(); };
+  app.querySelectorAll('[data-aprov]').forEach(s=>s.onchange=()=>{ read(); delete cfg.model[s.dataset.aprov]; store.set('keys2',cfg); viewSettings(); });
+  app.querySelectorAll('[data-web]').forEach(s=>s.onchange=redraw);
+  app.querySelectorAll('[data-model]').forEach(s=>s.onchange=()=>{ const o=app.querySelector(`[data-other="${s.dataset.model}"]`); o.hidden = s.value!=='__other'; if(!o.hidden) o.focus(); });
+  app.querySelectorAll('[data-show]').forEach(b=>b.onclick=()=>{ const i=app.querySelector(`[data-key="${b.dataset.show}"]`); const h=i.type==='password'; i.type=h?'text':'password'; b.textContent=h?'Hide':'Show'; });
+  $('#saveK').onclick = () => { read(); store.set('keys2',cfg);
+    const need = (cfg.same?['ai']:AI_AGENTS.map(a=>'ai|'+a.id)).concat(WEB_AGENTS.map(a=>'web|'+(cfg.web[a.id]||a.rec)));
+    const miss = need.filter(k=>!cfg.keys[k]).length; toast(miss?`Saved. ${miss} key${miss>1?'s':''} still missing.`:'Saved. All keys added.'); };
+  $('#clrK').onclick = () => { const before=JSON.parse(JSON.stringify(cfg)); cfg.keys={}; store.set('keys2',cfg); viewSettings(); toast('Keys cleared',()=>{ store.set('keys2',before); viewSettings(); }); };
+}
+$('#nav-settings').onclick=viewSettings;
+$('#nav-check').onclick=()=>profile?viewUpload():viewProfile();
+$('#nav-history').onclick=()=>{ prevView=profile?viewUpload:viewProfile; viewHistory(); };
+document.querySelectorAll('[data-state]').forEach(b=>b.onclick=()=>{ if(!profile){ profile=JSON.parse(JSON.stringify(DEFAULT)); profile.body='Pear'; }
+  const s=b.dataset.state; if(s==='results'){ current=current||{id:0}; answered={}; viewResults(); } else viewWorking(s); });
+profile ? viewUpload() : viewProfile();
+</script>
+
+</body>
+</html>
