@@ -175,7 +175,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.8</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.8.1</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -242,7 +242,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.8';
+const VERSION = 'v0.8.1';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -278,7 +278,8 @@ const modelLabel = id => { const a=agentCfg(id); return `${PROV[a.prov].n} · ${
 const secs = ms => (ms/1000).toFixed(1)+'s';
 
 const SESSION = (()=>{ let s=store.get('session',null); if(!s){ s=Math.random().toString(36).slice(2,10); store.set('session',s); } return s; })();
-function logEvent(ev){ const url=(getCfg().logUrl||LOG_URL_DEFAULT).trim(); if(!url) return;
+const okLogUrl = u => /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(u||'').trim());
+function logEvent(ev){ const saved=getCfg().logUrl, url=(okLogUrl(saved)?saved:LOG_URL_DEFAULT).trim(); if(!url) return;
   const row=Object.assign({time:new Date().toISOString(), session:SESSION, version:VERSION}, ev);
   try{ fetch(url,{method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(row)}).catch(()=>{}); }catch(e){} }
 function act(name, detail, extra){ logEvent(Object.assign({type:'action', step:name, run_id:(current&&current.id)||'',
@@ -798,7 +799,7 @@ function viewSettings(){
     act('Prompt saved', {prompt:id, edited:!!cfg.prompts[id], chars:v.length}); toast(`${PROMPT_NAMES[id]} prompt saved`); viewSettings(); });
   app.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{ const id=b.dataset.preset; save(); delete cfg.prompts[id]; store.set('keys2',cfg);
     act('Prompt reset', {prompt:id}); toast(`${PROMPT_NAMES[id]} prompt reset to default`); viewSettings(); });
-  $('#testLog').onclick=()=>{ save(); if(!cfg.logUrl){ toast('Paste the web app URL first'); return; } act('Test row', 'Sent from Settings'); toast('Test row sent. Check the Logs tab in the Sheet.'); };
+  $('#testLog').onclick=()=>{ save(); if(cfg.logUrl&&!okLogUrl(cfg.logUrl)){ toast('That isn’t a web app URL. It must start with script.google.com/macros/s/ and end in /exec.'); return; } if(!cfg.logUrl&&!LOG_URL_DEFAULT){ toast('Paste the web app URL first'); return; } act('Test row', 'Sent from Settings'); toast('Test row sent. Check the Logs tab in the Sheet.'); };
   $('#saveK').onclick=()=>{ save(); const need=(cfg.same?['ai']:AI_AGENTS.map(a=>'ai|'+a.id)); const miss=need.filter(k=>!cfg.keys[k]).length;
     act('Save settings', {same:cfg.same, provider:cfg.same?cfg.prov:cfg.aprov, models:cfg.model, web_research:cfg.web, logging:!!cfg.logUrl, edited_prompts:Object.keys(cfg.prompts), keys_set:Object.keys(cfg.keys)});
     toast(miss?`Saved. ${miss} key${miss>1?'s':''} still missing.`:'Saved. All keys added.'); };
