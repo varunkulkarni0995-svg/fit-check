@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.13';
+const VERSION = 'v0.13.1';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -631,6 +631,10 @@ const STORE_RE=/(^|\.)(rei\.com|dickssportinggoods\.com|backcountry\.com|zappos\
 const GENERIC=new Set("men mens men's women womens women's woman man unisex the a and with for of in on to jacket dress shirt top pants coat full zip zipper hoodie sweater rain water resistant waterproof softshell lightweight casual long short sleeve sleeves midi maxi mini new size sizes color black white available extended fit regular slim classic".split(' '));
 function productWords(name, brand){ const b=String(brand||'').toLowerCase(); return String(name||'').toLowerCase().replace(/[^a-z0-9' ]+/g,' ').split(/\s+/).filter(w=>w&&!GENERIC.has(w)&&!b.split(/\s+/).includes(w)&&w.length>2); }
 function reviewsPart(md){ const t=String(md||''); const i=t.search(/customer reviews|ratings? & reviews|reviews \(\d|size purchased|fit:|rated \d|out of 5 stars|verified (buyer|purchase)/i); return (i>2000?t.slice(i-500):t).slice(0,9000); }
+function normSize(v){ if(!v) return null; let t=String(v).trim().toLowerCase().replace(/^(men'?s|women'?s|mens|womens|size)\s*/,'').replace(/[\s_-]+/g,' ').trim();
+  const M={'extra small':'XS','x small':'XS','xs':'XS','small':'S','s':'S','medium':'M','med':'M','m':'M','large':'L','l':'L','extra large':'XL','x large':'XL','xl':'XL','xx large':'XXL','2x large':'XXL','xxl':'XXL','2xl':'XXL','2x':'XXL'};
+  const tall=/\btall\b/.test(t); const base=t.replace(/\b(tall|regular|petite|long|short)\b/g,'').trim();
+  return M[base]? M[base]+(tall?' Tall':'') : String(v).trim(); }
 async function moreReviews(ctx){
   const serper=webKey('serper'); if(!serper) throw Object.assign(new Error('Add a Serper key in Settings to find more reviews.'), {setup:true});
   const p=ctx.reader.product||{}, brand=p.brand||'', key=productWords(p.name, brand).slice(0,3); if(!brand||!key.length) return {added:0, sites:[], why:'no product name'};
@@ -648,7 +652,7 @@ async function moreReviews(ctx){
     if(fc){ const r=await webFetch('More reviews: read','firecrawl','https://api.firecrawl.dev/v1/scrape',{method:'POST',headers:{Authorization:'Bearer '+fc,'Content-Type':'application/json'},body:JSON.stringify({url:c.url,formats:['markdown'],onlyMainContent:false,waitFor:3000})}); text=(r.json&&r.json.data&&r.json.data.markdown)||''; }
     if(text.length<1500){ const h={Accept:'application/json'}; if(jina) h.Authorization='Bearer '+jina; const r=await webFetch('More reviews: read','jina','https://r.jina.ai/'+c.url,{headers:h}); text=((r.json&&r.json.data&&r.json.data.content)||text); }
     if(/captcha|robot or human|access denied/i.test(text.slice(0,3000))||text.length<1500){ sites.push({site:c.site, count:0, why:'page blocked or empty'}); continue; }
-    let o; try{ o=await callAgent('More reviews', 'decider', promptFor('reader'), `INPUT:\nThis is the text of the ${c.site} page for the same product. Extract its reviews.\nTEXT:\n`+reviewsPart(text), [], {json:true}); }catch(e){ sites.push({site:c.site, count:0, why:e.message}); continue; }
+    let o; try{ o=await callAgent('More reviews', 'reader', promptFor('reader'), `INPUT:\nThis is the text of the ${c.site} page for the same product. Extract its reviews.\nTEXT:\n`+reviewsPart(text), [], {json:true}); }catch(e){ sites.push({site:c.site, count:0, why:e.message}); continue; }
     const d=cleanReader(o.data), nm=((d.product||{}).name||'').toLowerCase();
     if(nm && !key.slice(0,1).every(w=>nm.includes(w))){ sites.push({site:c.site, count:0, why:'different product'}); continue; }
     const revs=(d.reviews||[]).filter(r=>r.text&&r.text.length>15); revs.forEach(r=>{ r.source=c.site; }); all.push(...revs); sites.push({site:c.site, count:revs.length, ms:o.ms}); }
@@ -707,7 +711,7 @@ async function analyse(ctx){
   const pr=agentProfile(), p=ctx.reader.product||{};
   const input={case_id:String(current.id), profile:{height_in:pr.height_in, usual_size:pr.usual_size, body_type:pr.body_type==='Not sure'?null:String(pr.body_type).toLowerCase()},
     product:{name:p.name||'', brand:p.brand||'', seller:p.seller||'', fabric:p.fabric||null, features:p.features||[]},
-    reviews:(ctx.reader.reviews||[]).map(r=>({id:r.id, rating:r.rating??null, date:r.date||null, size_bought:r.size_bought||null, height_in:r.height_in??null, body_type:r.body_type||null, source:r.source||'uploaded page', text:r.text}))};
+    reviews:(ctx.reader.reviews||[]).map(r=>({id:r.id, rating:r.rating??null, date:r.date||null, size_bought:normSize(r.size_bought), height_in:r.height_in??null, body_type:r.body_type||null, source:r.source||'uploaded page', text:r.text}))};
   const o=await callAgent('Analyst', 'analyst', promptFor('analyst'), 'INPUT:\n'+JSON.stringify(input), [], {json:true});
   ctx.analyst=checkQuotes(o.data&&o.data.analyst?o.data.analyst:o.data, ctx.reader.reviews); ctx.times.Analyst=o.ms; ctx.models.Analyst=o.label; return o; }
 async function decide(ctx){
