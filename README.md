@@ -20,4 +20,4 @@ One file, no build step: open `index.html` in a browser.
 Every agent prompt can be edited on the Settings page (✎ Edit) without a rebuild. Edits are saved in that browser.
 
 ## Logs and KPIs
- is the Google Sheet script. It logs every API request and response (files replaced by their size, keys never sent), each check, feedback and main button tap, and builds a KPIs tab.
+`apps-script/Code.gs` is the Google Sheet script. It logs every API request and response (files replaced by their size, keys never sent), each check, feedback and main button tap, and builds a KPIs tab.
