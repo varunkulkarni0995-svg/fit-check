@@ -182,7 +182,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.12.2</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.13</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.12.2';
+const VERSION = 'v0.13';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -626,6 +626,37 @@ async function webResearch(brand, seller){
   data.signals=(data.signals||[]).filter(s=>s.sources.length);
   return {ok:true, empty:!data.signals.length&&false, stats, ms:o.ms, label:o.label, data:{brand, seller, window:'last 6 months', signals:data.signals}}; }
 
+/* ---------- More reviews: same product on other stores (not Amazon) ---------- */
+const STORE_RE=/(^|\.)(rei\.com|dickssportinggoods\.com|backcountry\.com|zappos\.com|nordstrom\.com|macys\.com|kohls\.com|walmart\.com|llbean\.com|moosejaw\.com|evo\.com|sierra\.com|scheels\.com|academy\.com|bloomingdales\.com|asos\.com|revolve\.com|lulus\.com|anthropologie\.com|freepeople\.com|jcpenney\.com)$/i;
+const GENERIC=new Set("men mens men's women womens women's woman man unisex the a and with for of in on to jacket dress shirt top pants coat full zip zipper hoodie sweater rain water resistant waterproof softshell lightweight casual long short sleeve sleeves midi maxi mini new size sizes color black white available extended fit regular slim classic".split(' '));
+function productWords(name, brand){ const b=String(brand||'').toLowerCase(); return String(name||'').toLowerCase().replace(/[^a-z0-9' ]+/g,' ').split(/\s+/).filter(w=>w&&!GENERIC.has(w)&&!b.split(/\s+/).includes(w)&&w.length>2); }
+function reviewsPart(md){ const t=String(md||''); const i=t.search(/customer reviews|ratings? & reviews|reviews \(\d|size purchased|fit:|rated \d|out of 5 stars|verified (buyer|purchase)/i); return (i>2000?t.slice(i-500):t).slice(0,9000); }
+async function moreReviews(ctx){
+  const serper=webKey('serper'); if(!serper) throw Object.assign(new Error('Add a Serper key in Settings to find more reviews.'), {setup:true});
+  const p=ctx.reader.product||{}, brand=p.brand||'', key=productWords(p.name, brand).slice(0,3); if(!brand||!key.length) return {added:0, sites:[], why:'no product name'};
+  const core=key.join(' '), bdom=brand.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const qs=[`${brand} ${core} reviews`, `${brand} ${core} site:${bdom}.com OR site:rei.com OR site:dickssportinggoods.com OR site:zappos.com OR site:backcountry.com OR site:nordstrom.com OR site:walmart.com`];
+  const res=await Promise.all(qs.map(q=>webFetch('More reviews: search','serper','https://google.serper.dev/search',{method:'POST',headers:{'X-API-KEY':serper,'Content-Type':'application/json'},body:JSON.stringify({q,num:10})})));
+  const seen=new Set(), cands=[];
+  res.forEach(r=>(r.json&&r.json.organic||[]).forEach(o=>{ const u=o.link||'', h=wHost(u); if(!u||seen.has(h)) return;
+    if(/(^|\.)amazon\./.test(h)||wNoRead(u)||/\/(search|s|c|browse|category|shop)\b|[?&](q|query|search)=/i.test(u)) return;
+    const hay=((o.title||'')+' '+u).toLowerCase(); if(!key.slice(0,Math.min(2,key.length)).every(w=>hay.includes(w))) return;
+    const store=STORE_RE.test(h)||h.replace(/[^a-z0-9]/g,'').includes(bdom); if(!store) return;
+    seen.add(h); cands.push({url:u, site:h}); }));
+  const fc=webKey('firecrawl'), jina=webKey('jina'), sites=[], all=[];
+  for(const c of cands.slice(0,2)){ let text='';
+    if(fc){ const r=await webFetch('More reviews: read','firecrawl','https://api.firecrawl.dev/v1/scrape',{method:'POST',headers:{Authorization:'Bearer '+fc,'Content-Type':'application/json'},body:JSON.stringify({url:c.url,formats:['markdown'],onlyMainContent:false,waitFor:3000})}); text=(r.json&&r.json.data&&r.json.data.markdown)||''; }
+    if(text.length<1500){ const h={Accept:'application/json'}; if(jina) h.Authorization='Bearer '+jina; const r=await webFetch('More reviews: read','jina','https://r.jina.ai/'+c.url,{headers:h}); text=((r.json&&r.json.data&&r.json.data.content)||text); }
+    if(/captcha|robot or human|access denied/i.test(text.slice(0,3000))||text.length<1500){ sites.push({site:c.site, count:0, why:'page blocked or empty'}); continue; }
+    let o; try{ o=await callAgent('More reviews', 'decider', promptFor('reader'), `INPUT:\nThis is the text of the ${c.site} page for the same product. Extract its reviews.\nTEXT:\n`+reviewsPart(text), [], {json:true}); }catch(e){ sites.push({site:c.site, count:0, why:e.message}); continue; }
+    const d=cleanReader(o.data), nm=((d.product||{}).name||'').toLowerCase();
+    if(nm && !key.slice(0,1).every(w=>nm.includes(w))){ sites.push({site:c.site, count:0, why:'different product'}); continue; }
+    const revs=(d.reviews||[]).filter(r=>r.text&&r.text.length>15); revs.forEach(r=>{ r.source=c.site; }); all.push(...revs); sites.push({site:c.site, count:revs.length, ms:o.ms}); }
+  const have=new Set((ctx.reader.reviews||[]).map(r=>normText(r.text).toLowerCase().slice(0,80))); let n=(ctx.reader.reviews||[]).length;
+  const fresh=all.filter(r=>{ const k=normText(r.text).toLowerCase().slice(0,80); if(have.has(k)) return false; have.add(k); return true; }).map(r=>Object.assign({}, r, {id:'R'+(++n)}));
+  (ctx.reader.reviews=ctx.reader.reviews||[]).push(...fresh);
+  return {added:fresh.length, sites}; }
+
 /* ---------- 2. Upload ---------- */
 function viewUpload(){
   nav('check'); if(!profile){ viewProfile(); return; }
@@ -652,7 +683,7 @@ function viewUpload(){
 }
 
 /* ---------- 3. Working ---------- */
-const STEPS=['Reading the page','Checking the brand','Matching reviews like you','Deciding the fit call'];
+const STEPS=['Reading the page','Finding more reviews on other stores','Checking the brand','Matching reviews like you','Deciding the fit call'];
 function mark(i, st, txt){ if(cancelled) return; const li=$('#s'+i); if(!li) return; li.className=st==='off'?'':st;
   if(st==='done'){ li.querySelector('.dot').textContent='✓'; } li.querySelector('.num').textContent=txt||(st==='off'?'off':''); }
 function viewWorking(outcome){
@@ -668,15 +699,15 @@ function viewWorking(outcome){
   const times=['4.1s','9.8s','5.6s','1.9s']; const f=matchMedia('(prefers-reduced-motion: reduce)').matches?150:700; const later=(ms,fn)=>setTimeout(()=>{ if(!cancelled) fn(); },ms);
   mark(0,'run');
   later(f,()=>{ mark(0,'done',times[0]); if(outcome==='unreadable'){ viewUnreadable(); return; }
-    mark(1,'run'); mark(2,'run'); later(f*0.8,()=>onRetry('Web researcher','503'));
-    later(f*1.4,()=>mark(2,'done',times[2])); later(f*2,()=>{ mark(1,'done',times[1]); mark(3,'run'); const e=$('#eta'); if(e) e.textContent='Almost done.'; });
-    later(f*2.7,()=>{ mark(3,'done',times[3]); later(f*0.5,()=> outcome==='thin'?viewThin():saveAndShow(sampleResult())); }); });
+    mark(1,'off'); mark(2,'run'); mark(3,'run'); later(f*0.8,()=>onRetry('Web researcher','503'));
+    later(f*1.4,()=>mark(3,'done',times[2])); later(f*2,()=>{ mark(2,'done',times[1]); mark(4,'run'); const e=$('#eta'); if(e) e.textContent='Almost done.'; });
+    later(f*2.7,()=>{ mark(4,'done',times[3]); later(f*0.5,()=> outcome==='thin'?viewThin():saveAndShow(sampleResult())); }); });
 }
 async function analyse(ctx){
   const pr=agentProfile(), p=ctx.reader.product||{};
   const input={case_id:String(current.id), profile:{height_in:pr.height_in, usual_size:pr.usual_size, body_type:pr.body_type==='Not sure'?null:String(pr.body_type).toLowerCase()},
     product:{name:p.name||'', brand:p.brand||'', seller:p.seller||'', fabric:p.fabric||null, features:p.features||[]},
-    reviews:(ctx.reader.reviews||[]).map(r=>({id:r.id, rating:r.rating??null, date:r.date||null, size_bought:r.size_bought||null, height_in:r.height_in??null, body_type:r.body_type||null, text:r.text}))};
+    reviews:(ctx.reader.reviews||[]).map(r=>({id:r.id, rating:r.rating??null, date:r.date||null, size_bought:r.size_bought||null, height_in:r.height_in??null, body_type:r.body_type||null, source:r.source||'uploaded page', text:r.text}))};
   const o=await callAgent('Analyst', 'analyst', promptFor('analyst'), 'INPUT:\n'+JSON.stringify(input), [], {json:true});
   ctx.analyst=checkQuotes(o.data&&o.data.analyst?o.data.analyst:o.data, ctx.reader.reviews); ctx.times.Analyst=o.ms; ctx.models.Analyst=o.label; return o; }
 async function decide(ctx){
@@ -694,19 +725,26 @@ async function runLive(){
     mark(0,'run'); const parts=await withTimeout(fileParts(files), 30000, 'Reading your files took too long.');
     const rd=await callAgent('Reader', 'reader', promptFor('reader'), 'INPUT:\n'+JSON.stringify({profile:agentProfile()})+'\nRead the attached files.', parts, {json:true});
     if(cancelled) return; ctx.reader=cleanReader(rd.data); ctx.times.Reader=rd.ms; ctx.models.Reader=rd.label; mark(0,'done',secs(rd.ms));
-    if(ctx.reader.readable===false || !(ctx.reader.reviews||[]).length){ current.running=false;
-      logEvent({type:'run', run_id:id, status:'unreadable', ms:Math.round(performance.now()-t0), detail:ctx.reader.problem||'no reviews read'}); viewUnreadable(ctx.reader.problem); return; }
+    if(ctx.reader.readable===false && !(ctx.reader.product||{}).name){ current.running=false;
+      logEvent({type:'run', run_id:id, status:'unreadable', ms:Math.round(performance.now()-t0), detail:ctx.reader.problem||'not readable'}); viewUnreadable(ctx.reader.problem); return; }
+    ctx.counts={upload:(ctx.reader.reviews||[]).length, other:[]};
+    if(c.more!==false && webKey('serper')){ mark(1,'run'); const tm=performance.now();
+      try{ const m=await moreReviews(ctx); if(cancelled) return; ctx.counts.other=m.sites; const ms=Math.round(performance.now()-tm); ctx.times['More reviews']=ms; ctx.models['More reviews']=`Serper + Firecrawl: ${m.sites.map(x=>x.site+' '+x.count+(x.why?' ('+x.why+')':'')).join(', ')||'no other store found'}`; mark(1,'done',`+${m.added} \u00b7 ${secs(ms)}`); }
+      catch(e){ if(cancelled) return; mark(1,'done','skipped'); const s=$('#sw'); if(s){ s.textContent=e.setup?e.message:'Couldn\u2019t search other stores this time.'; s.hidden=false; } } }
+    else mark(1,'off');
+    if(!(ctx.reader.reviews||[]).length){ current.running=false;
+      logEvent({type:'run', run_id:id, status:'unreadable', ms:Math.round(performance.now()-t0), detail:ctx.reader.problem||'no reviews read'}); viewUnreadable(ctx.reader.problem||'No reviews were found on the page or on other stores.'); return; }
     const p=ctx.reader.product||{};
     let webP;
-    if(c.web && (p.brand||p.seller)){ mark(1,'run'); const tw=performance.now();
+    if(c.web && (p.brand||p.seller)){ mark(2,'run'); const tw=performance.now();
       webP=webResearch(p.brand||p.seller, p.seller||'')
-        .then(w=>{ const ms=Math.round(performance.now()-tw); ctx.times['Web researcher']=ms; ctx.models['Web researcher']=`Serper + Firecrawl (${w.stats.kept} sources, ${w.stats.read} pages read)${w.label?' → '+w.label:''}`; mark(1,'done',secs(ms)); return w; })
-        .catch(e=>{ if(cancelled) throw e; mark(1,'done','skipped'); const s=$('#sw'); if(s){ s.textContent=e.setup?e.message:'Web research didn\u2019t work, so results will skip the brand check.'; s.hidden=false; } return {ok:false, error:e.message}; }); }
-    else { mark(1,'off'); webP=Promise.resolve({off:true}); }
-    mark(2,'run');
-    const [web, an]=await Promise.all([webP, analyse(ctx)]); if(cancelled) return; ctx.web=web; mark(2,'done',secs(an.ms));
-    mark(3,'run'); const e=$('#eta'); if(e) e.textContent='Almost done.';
-    const r=await decide(ctx); if(cancelled) return; mark(3,'done',secs(ctx.times.Decider)); current.running=false;
+        .then(w=>{ const ms=Math.round(performance.now()-tw); ctx.times['Web researcher']=ms; ctx.models['Web researcher']=`Serper + Firecrawl (${w.stats.kept} sources, ${w.stats.read} pages read)${w.label?' → '+w.label:''}`; mark(2,'done',secs(ms)); return w; })
+        .catch(e=>{ if(cancelled) throw e; mark(2,'done','skipped'); const s=$('#sw'); if(s){ s.textContent=e.setup?e.message:'Web research didn\u2019t work, so results will skip the brand check.'; s.hidden=false; } return {ok:false, error:e.message}; }); }
+    else { mark(2,'off'); webP=Promise.resolve({off:true}); }
+    mark(3,'run');
+    const [web, an]=await Promise.all([webP, analyse(ctx)]); if(cancelled) return; ctx.web=web; mark(3,'done',secs(an.ms));
+    mark(4,'run'); const e=$('#eta'); if(e) e.textContent='Almost done.';
+    const r=await decide(ctx); if(cancelled) return; mark(4,'done',secs(ctx.times.Decider)); current.running=false;
     const call=r.status==='not_enough_evidence'?'Not enough evidence':callFor(r).word;
     logEvent({type:'run', run_id:id, status:r.status==='not_enough_evidence'?'not_enough':'ok', ms:Math.round(performance.now()-t0), fit_call:call,
       detail:JSON.stringify({web:c.web?(web.ok?'ok':'failed'):'off', models:ctx.models})});
@@ -734,7 +772,9 @@ function toResult(ctx, dec){ dec=dec||{}; const rd=ctx.reader||{}, an=ctx.analys
   let brandLine=(dec.brand_line||{}).text||'No recent brand issues found';
   if(ctx.web&&ctx.web.off) brandLine='Web research is switched off in Settings.'; else if(ctx.web&&ctx.web.ok&&ctx.web.empty) brandLine='Not enough recent brand information online (last 6 months).'; else if(ctx.web&&!ctx.web.ok) brandLine='Web research didn’t work this time.';
   const host=u=>{ try{ return new URL(u).hostname.replace(/^www\./,''); }catch(e){ return String(u); } };
-  return {live:true, status:dec.status, product:p.name||'This dress', brand:p.brand||'', seller:p.seller||'', similar:sim, total:(rd.reviews||[]).length,
+  const oc=(ctx.counts&&ctx.counts.other||[]).filter(x=>x.count);
+  const srcLine=oc.length?` Reviews read: ${ctx.counts.upload} from your upload + ${oc.map(x=>x.count+' from '+x.site).join(', ')}.`:'';
+  return {live:true, srcLine, status:dec.status, product:p.name||'This dress', brand:p.brand||'', seller:p.seller||'', similar:sim, total:(rd.reviews||[]).length,
     warnings:(dec.warnings||[]).map(map), unconfirmed:(dec.unconfirmed||[]).map(map),
     tolerance:{shown:!!ft.shown, level:ft.shown?ft.level:'Unclear', reason:ft.reason||'Not enough evidence about stretch or give.', evidence:ft.shown?((an.fit_tolerance||{}).evidence||''):'', conf:ft.confidence||0},
     likeYou:(dec.shoppers_like_you||'')+(an.sized_up_count?` ${an.sized_up_count} of them say they bought a bigger size than usual.`:''),
@@ -784,7 +824,7 @@ const ICON={good:'<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy
 function viewResults(){
   nav('check'); const r=current.result, t=r.tolerance, c=callFor(r), q=asks(r), fb=current.feedback&&current.feedback.type;
   app.innerHTML=`<div class="stack col">${topBar('Upload', true, 3)}
-    <div><p class="eyebrow">${esc(r.brand)}${r.seller?' · sold by '+esc(r.seller):''}</p><h1>${esc(r.product)}</h1><p class="muted small">Based on ${r.similar} reviews from shoppers like you (${r.total} review${r.total===1?'':'s'} read).${r.sample?' Sample data.':''}</p></div>
+    <div><p class="eyebrow">${esc(r.brand)}${r.seller?' · sold by '+esc(r.seller):''}</p><h1>${esc(r.product)}</h1><p class="muted small">${r.srcLine?esc(r.srcLine.trim())+' ':''}Based on ${r.similar} reviews from shoppers like you (${r.total} review${r.total===1?'':'s'} read).${r.sample?' Sample data.':''}</p></div>
     <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
     ${profileChanged?`<div class="notice"><span>Profile changed. Results still use the old profile.</span><button class="btn btn-secondary" id="rerun">Check again</button></div>`:''}
     <div class="call ${c.cls}" role="status">${ICON[c.cls]}<div><p class="eyebrow">Fit call for your usual ${esc(profile.size)}</p><p class="word">${c.word}</p><p>${esc(c.why)}.</p></div></div>
@@ -933,7 +973,8 @@ function viewSettings(){
     <div class="card">
       <div><h2>Web research</h2><p class="small muted">Checks the brand and seller for the last 6 months: Serper searches, Firecrawl reads the top pages (Jina as backup), and the Reader\u2019s model sums it up. Keys saved in API Bench on this site are used too.</p></div>
       <div class="kgrid">${[['serper','Serper','https://serper.dev/api-key'],['firecrawl','Firecrawl','https://www.firecrawl.dev/app/api-keys'],['jina','Jina (optional)','https://jina.ai/api-dashboard']].map(([k,n,u])=>`<b>${n}</b><div class="kwrap"><input type="password" data-wkey="${k}" placeholder="Paste ${n} key" value="${esc(cfg.keys[k]||'')}" autocomplete="off"></div><span class="saved">${cfg.keys[k]?'\u2713 Saved':webKey(k)?'\u2713 From API Bench':`<a href="${u}" target="_blank" rel="noopener">Get key \u2197</a>`}</span>`).join('')}</div>
-      <label class="radio" style="border:0;padding:0"><input type="checkbox" id="web" ${cfg.web?'checked':''}> Web research on</label>
+      <label class="radio" style="border:0;padding:0"><input type="checkbox" id="web" ${cfg.web?'checked':''}> Web research on (brand and seller)</label>
+      <label class="radio" style="border:0;padding:0"><input type="checkbox" id="more" ${cfg.more!==false?'checked':''}> Find more reviews of the same product on other stores (not Amazon)</label>
       ${cfg.web&&!webKey('serper')?'<p class="note">Needs a Serper key. Without one, checks skip this step.</p>':''}
     </div>
     <div class="card">
@@ -970,6 +1011,7 @@ function viewSettings(){
   const cb=$('#cbase'); if(cb) cb.oninput=()=>{ cfg.customBase=cb.value.trim(); persist(); delete modelCache.custom; };
   $('#useAll').onclick=()=>{ const r=cfg.agents.reader; ['analyst','decider'].forEach(a=>Object.assign(cfg.agents[a], {prov:r.prov, model:r.model, bprov:r.bprov, bmodel:r.bmodel})); persist(); act('Use Reader choice for all'); toast('All agents now use the Reader’s choice'); viewSettings(); };
   app.querySelectorAll('[data-wkey]').forEach(i=>i.addEventListener('change',()=>{ const v=i.value.trim(); if(v) cfg.keys[i.dataset.wkey]=v; else delete cfg.keys[i.dataset.wkey]; persist(); act('Key changed',{provider:i.dataset.wkey,set:!!v}); setTimeout(viewSettings,0); }));
+  $('#more').onchange=()=>{ cfg.more=$('#more').checked; persist(); act('More reviews', cfg.more?'on':'off'); };
   $('#web').onchange=()=>{ cfg.web=$('#web').checked; persist(); act('Web research', cfg.web?'on':'off'); viewSettings(); };
   $('#logUrl').oninput=()=>{ cfg.logUrl=$('#logUrl').value.trim(); persist(); };
   app.querySelectorAll('[data-pedit]').forEach(b=>b.onclick=()=>{ const p=$('#pe_'+b.dataset.pedit); p.hidden=!p.hidden; b.setAttribute('aria-expanded',String(!p.hidden)); });
