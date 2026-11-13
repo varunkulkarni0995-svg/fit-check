@@ -181,7 +181,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.10.3</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.10.4</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -248,7 +248,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.10.3';
+const VERSION = 'v0.10.4';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -392,7 +392,7 @@ async function callModel(step, cfg, system, text, parts, opts){ opts=opts||{}; p
         if(r.status===400 && /temperature/i.test(msg) && !req.noTemp){ req.noTemp=true; delete req.body.temperature; if(req.body.generationConfig) delete req.body.generationConfig.temperature; attempt--; continue; }
         if(r.status===400 && !req.noExtras && /response_format|reasoning|json|max_tokens|max_completion|thinking/i.test(msg)){ req.noExtras=true; ['response_format','reasoning_effort','reasoning'].forEach(k=>delete req.body[k]); if(req.body.max_tokens) req.body.max_tokens=8192; if(req.body.generationConfig){ delete req.body.generationConfig.thinkingConfig; delete req.body.generationConfig.responseMimeType; } attempt--; continue; }
         const wait=+((String(msg).match(/(?:try again|retry) in ([\d.]+)\s*s/i)||[])[1]||0);
-        if(r.status===429 && wait && wait<=40 && !req.waited){ req.waited=true; onRetry(step, `rate limit, waiting ${Math.ceil(wait)} s`); await new Promise(x=>setTimeout(x,(wait+1)*1000)); if(cancelled) throw new Error('cancelled'); attempt--; continue; }
+        if(r.status===429 && wait && wait<=40 && (req.waited||0)+wait<=75){ req.waited=(req.waited||0)+wait; onRetry(step, `rate limit, waiting ${Math.ceil(wait)} s`); await new Promise(x=>setTimeout(x,(wait+1)*1000)); if(cancelled) throw new Error('cancelled'); attempt--; continue; }
         const quota=r.status===429 && /quota|exceeded|limit/i.test(msg);
         if((r.status===503||r.status===500||(r.status===429&&!quota)) && attempt===1){ onRetry(step, r.status); continue; }
         if(quota){ const er=new Error(`${PROV[cfg.prov].n}'s free daily limit for ${cfg.model} is used up. Add a backup model with its own key in Settings, or try tomorrow.`); er.retryable=true; throw er; }
