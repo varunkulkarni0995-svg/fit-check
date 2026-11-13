@@ -166,6 +166,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 @media (max-width:720px){.keys thead{display:none}.keys tr{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-bottom:1px solid var(--line)}.keys td{border:0;padding:0;width:auto!important}}
 .fbk{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fbk .btn{min-height:40px;padding:8px 14px}.fbk .sel{border-color:var(--accent);background:var(--accent-soft)}
 .prow{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}.pedit textarea{font:400 13px/19px var(--font-mono)}
+.keyrow{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.saved{font:600 12px/18px var(--font-sans);color:var(--success)}
 .statebar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink-muted);margin-top:28px;padding-top:14px;border-top:1px solid var(--line)}
 .statebar button{font:500 12px/16px var(--font-sans);background:var(--surface-1);border:1px solid var(--line);color:var(--ink-muted);border-radius:999px;padding:4px 10px;cursor:pointer}
 </style>
@@ -175,7 +176,7 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
 
 <div class="wrap">
   <header>
-    <div class="brand"><b>Fit Check<span class="ver">v0.8.2</span></b><small>prototype · by Varun Kulkarni</small></div>
+    <div class="brand"><b>Fit Check<span class="ver">v0.8.3</span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
   <main id="app" aria-live="polite"></main>
@@ -242,7 +243,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.8.2';
+const VERSION = 'v0.8.3';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -744,7 +745,7 @@ function modelCell(a, prov, cfg){
     <input type="text" data-other="${a.id}" placeholder="Type the model name" value="${other?esc(v):''}" ${other||!list.length?'':'hidden'} style="margin-top:6px">
     ${prov==='gemini'&&v==='gemini-3.5-flash'?(a.tested?`<span class="badge ok">${esc(a.tested)}</span>`:'<span class="badge">★ Recommended · not tested yet</span>'):''}`; }
 function keyCell(slot, prov, cfg, label){ return `<div class="kwrap"><input type="password" data-key="${slot}" placeholder="Paste ${esc(PROV[prov].n)} key" value="${esc(cfg.keys[slot]||'')}" autocomplete="off" aria-label="${esc(label)} key"><button type="button" data-show="${slot}">Show</button></div>
-  <a href="${PROV[prov].url}" target="_blank" rel="noopener">Get a ${esc(PROV[prov].n)} key ↗</a>`; }
+  <span class="keyrow"><a href="${PROV[prov].url}" target="_blank" rel="noopener">Get a ${esc(PROV[prov].n)} key ↗</a><span class="saved" data-saved="${slot}">${cfg.keys[slot]?'\u2713 Saved on this device':''}</span></span>`; }
 function viewSettings(){
   nav('settings'); const cfg=getCfg();
   const aiRows=AI_AGENTS.map(a=>{ const prov=cfg.same?cfg.prov:(cfg.aprov[a.id]||'gemini');
@@ -788,6 +789,7 @@ function viewSettings(){
     const pr=$('#prov'); if(pr) cfg.prov=pr.value; cfg.web=$('#web').checked; cfg.logUrl=$('#logUrl').value.trim(); };
   const save=()=>{ read(); store.set('keys2',cfg); };
   app.querySelectorAll('[data-key],[data-other],#logUrl').forEach(i=>i.addEventListener('input', save));
+  app.querySelectorAll('[data-key]').forEach(i=>i.addEventListener('input', ()=>{ const s=app.querySelector(`[data-saved="${i.dataset.key}"]`); if(s) s.textContent=i.value.trim()?'\u2713 Saved on this device':''; }));
   app.querySelectorAll('[data-model]').forEach(s=>s.addEventListener('change', save));
   $('#same').onchange=()=>{ read(); cfg.same=$('#same').checked; if(!cfg.same) AI_AGENTS.forEach(a=>{ cfg.aprov[a.id]=cfg.prov; if(cfg.keys.ai) cfg.keys['ai|'+a.id]=cfg.keys.ai; }); store.set('keys2',cfg); viewSettings(); };
   const pr=$('#prov'); if(pr) pr.onchange=()=>{ read(); cfg.model={}; store.set('keys2',cfg); viewSettings(); };
