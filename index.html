@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.15';
+const VERSION = 'v0.15.1';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
@@ -664,9 +664,10 @@ async function moreReviews(ctx){
     const snip=(o.snippet||'')+' '+(o.rating?'rated':'')+(o.ratingCount?' reviews':'');
     seen.add(h); cands.push({url:u, site:h, score:(/review/i.test(u)?3:0)+(/review/i.test(o.title||'')?1:0)+(o.ratingCount||REVIEW_SIGNAL.test(snip)?2:0)-rank*0.01}); }));
   cands.sort((a,b)=>b.score-a.score);
-  const sites=[], all=[], WANT=20; let tried=0;
-  for(const c of cands){ if(tried>=3||all.length>=WANT) break; tried++;
-    const {text, html}=await readStorePage(c.url);
+  const sites=[], all=[], WANT=20, top=cands.slice(0,3);
+  const pages=await Promise.all(top.map(c=>readStorePage(c.url).catch(()=>({text:'', html:''}))));   /* read the pages at the same time */
+  for(let k=0;k<top.length;k++){ const c=top[k]; if(all.length>=WANT) break;
+    const {text, html}=pages[k];
     if(/captcha|robot or human|access denied/i.test(text.slice(0,3000))){ sites.push({site:c.site, count:0, why:'page blocked'}); continue; }
     let revs=ldReviews(html);
     if(revs.length>=3){ sites.push({site:c.site, count:revs.length, why:'', via:'page data, no AI'}); }
