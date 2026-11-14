@@ -242,14 +242,14 @@ const SAMPLE = {
      quotes:['I’m 5′5″ and it hit my ankles, not mid-calf.','Had to hem it about two inches.']}],
   unconfirmed:[{chip:'Fabric see-through', area:'fabric', type:'quality', share:14.3, tag:'Isolated', conf:52, count:'2 of 14', quotes:['A little sheer in bright light.']}],
   tolerance:{level:'Low', reason:'No stretch: 100% polyester, fixed bodice.', evidence:'“There’s zero give in the chest.”', conf:81},
-  likeYou:'10 of 14 shoppers like you sized up to L.',
+  likeYou:'Based on 14 reviews from shoppers similar to you (same or nearby size, similar height or body type).',
   brandLine:'3 recent complaints about inconsistent sizing across Lunaria dresses.',
-  brandSrc:['reddit.com · Oct 2026','trustpilot.com · Sep 2026','trustpilot.com · Aug 2026'],
-  tools:[['Reader','Gemini Flash','4.1s'],['Web researcher','Tavily + Firecrawl → Groq','9.8s (backup used)'],['Analyst','Groq · Llama 3.3 70B','5.6s'],['Decider','Groq · Llama 3.3 70B','1.9s']]
+  brandSrc:['bbb.org · Oct 2026','trustpilot.com · Sep 2026','trustpilot.com · Aug 2026'],
+  tools:[['Reader','Groq · openai/gpt-oss-20b','4.6s'],['Review collector','Serper + Firecrawl → Groq · openai/gpt-oss-120b','8.2s'],['Web researcher','Serper + Firecrawl → Groq · openai/gpt-oss-20b','6.9s'],['Analyst','Groq · openai/gpt-oss-120b','2.5s'],['Decider','Groq · qwen/qwen3.8-27b','3.4s']]
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.16.1';
+const VERSION = 'v0.16.2';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
@@ -1073,7 +1073,7 @@ const AI_AGENTS = [
   {id:'reader', name:'Reader', job:'Reads the product page and reviews you upload.', rec:'passed 3/3 test pages, ~3 s'},
   {id:'more', name:'Review collector', job:'Pulls reviews of the same product from other store pages. Uses its own model so it doesn\u2019t wait on the Reader\u2019s limit.', rec:'v0.15'},
   {id:'analyst', name:'Analyst', job:'Finds reviews from shoppers like you and the fit issues in them.', rec:'passed 3/3 test pages, ~2 s'},
-  {id:'decider', name:'Decider', job:'Decides what the results screen shows.', rec:'passed 2/2 test pages, ~3 s; backup Gemini passed Almir\u2019s 10/10'}];
+  {id:'decider', name:'Decider', job:'Decides what the results screen shows.', rec:'10 of 10 golden cases in the live run (8 on qwen, 2 via the Gemini backup); backup Gemini 3.5 Flash passed the team\u2019s 10/10'}];
 const provFromText = t => { t=String(t||'').trim().toLowerCase(); if(!t) return '';
   return AI_PROVS.find(k=>k===t||PROV[k].n.toLowerCase()===t) || AI_PROVS.find(k=>PROV[k].n.toLowerCase().startsWith(t)) || null; };
 function combo(inp, getOpts, onPick, loader){
