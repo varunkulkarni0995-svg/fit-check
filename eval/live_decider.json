@@ -1,0 +1,187 @@
+[
+ {
+  "case": "D01",
+  "rubric": 5,
+  "ms": 9705,
+  "model": "Gemini \u00b7 gemini-3.5-flash (backup after Groq output limit)",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1",
+    "i2"
+   ],
+   "got_unconfirmed": [
+    "i3"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All expected elements match: status, warnings, unconfirmed, tolerance, and brand line with two links"
+  }
+ },
+ {
+  "case": "D02",
+  "rubric": 5,
+  "ms": 1582,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "not_enough_evidence",
+   "got_warnings": [],
+   "got_unconfirmed": []
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected output, no extra info"
+  }
+ },
+ {
+  "case": "D03",
+  "rubric": 5,
+  "ms": 3567,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1"
+   ],
+   "got_unconfirmed": [
+    "i2",
+    "i3"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected exactly"
+  }
+ },
+ {
+  "case": "D04",
+  "rubric": 5,
+  "ms": 1865,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1"
+   ],
+   "got_unconfirmed": [
+    "i2"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected exactly, no tolerance shown, no size recommendation"
+  }
+ },
+ {
+  "case": "D05",
+  "rubric": 5,
+  "ms": 8678,
+  "model": "Gemini \u00b7 gemini-3.5-flash (backup after Groq output limit)",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [],
+   "got_unconfirmed": [
+    "i1",
+    "i2"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected exactly, no warnings, correct unconfirmed items, tolerance and brand line"
+  }
+ },
+ {
+  "case": "D06",
+  "rubric": 5,
+  "ms": 3787,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1"
+   ],
+   "got_unconfirmed": [
+    "i2"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected, no size advice outside quotes"
+  }
+ },
+ {
+  "case": "D07",
+  "rubric": 5,
+  "ms": 3278,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1",
+    "i2",
+    "i3"
+   ],
+   "got_unconfirmed": [
+    "i4"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All elements match expected exactly"
+  }
+ },
+ {
+  "case": "D08",
+  "rubric": 5,
+  "ms": 1645,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1"
+   ],
+   "got_unconfirmed": []
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All expected fields match, warnings contain the same issue id, tolerance and brand line correct"
+  }
+ },
+ {
+  "case": "D09",
+  "rubric": 5,
+  "ms": 2258,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [
+    "i1"
+   ],
+   "got_unconfirmed": [
+    "i2"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All expected elements present and correct"
+  }
+ },
+ {
+  "case": "D10",
+  "rubric": 5,
+  "ms": 1858,
+  "model": "Groq \u00b7 qwen3.8-27b",
+  "check": {
+   "got_status": "ok",
+   "got_warnings": [],
+   "got_unconfirmed": [
+    "i1"
+   ]
+  },
+  "judge": {
+   "score": 5,
+   "reason": "All fields match expected exactly"
+  }
+ }
+]

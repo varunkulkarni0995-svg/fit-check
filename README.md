@@ -17,6 +17,11 @@ Prototype for the NBAY 6170 capstone (Team 14): an AI agent that reads a clothin
 
 One file, no build step: open `index.html` in a browser.
 
+## Submission (Build It, Then Measure It)
+- [Submission summary](eval/Fit_Check_Submission_Summary.pdf): prototype, workflow, knowledge source, evals, unit economics, commercial
+- [Eval pack](eval/Fit_Check_Eval_Pack.xlsx): 20 golden cases, 1-5 scores, model-as-judge agreement, top failure patterns
+- [Decider golden cases](eval/decider_cases.json) and [live run results](eval/live_decider.json)
+
 ## How matching works (v0.14)
 - The **Analyst tags** each review (how it runs, body words, problems with exact quotes, comparisons to other brands, size mapping). The **app counts** from the tags, so counts are the same every time.
 - **Built-in tolerance:** the item's fit tolerance sets who counts as "shoppers like you". High: a size either side and height within 3 in. Medium: same size, height within 2 in. Low: same size only. Editable in Settings → Matching rules.
