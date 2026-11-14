@@ -249,7 +249,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.15.1';
+const VERSION = 'v0.16';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
@@ -345,13 +345,13 @@ function fileParts(list){ return Promise.all(list.map(f=>new Promise((res,rej)=>
   r.onload=()=>res({mime:f.type||'application/octet-stream', name:f.name, size:f.size, data:String(r.result).split(',')[1]}); r.onerror=()=>rej(new Error('Could not read '+f.name)); r.readAsDataURL(f); }))); }
 function buildReq(cfg, system, text, parts, opts){
   if(cfg.prov==='gemini'){
-    const body={systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text}].concat(parts.map(p=>({inline_data:{mime_type:p.mime, data:p.data}})))}], generationConfig:{temperature:0, maxOutputTokens:8192}};
+    const body={systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text}].concat(parts.map(p=>({inline_data:{mime_type:p.mime, data:p.data}})))}], generationConfig:{temperature:0, maxOutputTokens:16384}};
     if(opts.search) body.tools=[{google_search:{}}]; else body.generationConfig.responseMimeType='application/json';
     return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`, headers:{'Content-Type':'application/json','x-goog-api-key':cfg.key}, body}; }
   if(cfg.prov==='anthropic'){
     const content=parts.map(p=>p.mime==='application/pdf'?{type:'document',source:{type:'base64',media_type:p.mime,data:p.data}}:{type:'image',source:{type:'base64',media_type:p.mime,data:p.data}}).concat([{type:'text',text}]);
     return {url:'https://api.anthropic.com/v1/messages', headers:{'Content-Type':'application/json','x-api-key':cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:{model:cfg.model, max_tokens:8192, system, messages:[{role:'user', content}]}}; }
+      body:{model:cfg.model, max_tokens:16000, system, messages:[{role:'user', content}]}}; }
   if(parts.some(p=>p.mime==='application/pdf')) throw new Error(`${PROV[cfg.prov].n} can't read PDFs here. Use Gemini, or upload screenshots instead.`);
   const content=parts.length?[{type:'text',text}].concat(parts.map(p=>({type:'image_url', image_url:{url:`data:${p.mime};base64,${p.data}`}}))):text;
   return {url:(cfg.base||PROV[cfg.prov].base)+'/chat/completions', headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
@@ -756,6 +756,52 @@ function memSave(ctx){
   if(!rows.length) return;
   try{ fetch(memUrl(),{method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({type:'memory', session:SESSION, version:VERSION, rows})}).catch(()=>{}); }catch(e){} }
 
+
+/* ---------- Reader: long uploads are read in parts so no answer gets cut off ---------- */
+const PART_CHARS=7000, IMGS_PER_CALL=3;
+function splitText(t, size){ const out=[]; let i=0;
+  while(i<t.length){ let end=Math.min(t.length, i+size);
+    if(end<t.length){ const win=t.slice(i+Math.floor(size*0.6), end); const re=/\n(?=[^\n]*(out of 5 stars|Reviewed in|Verified Purchase|Rated [1-5]|[1-5] stars?\b))/gi; let m, cut=-1;
+      while((m=re.exec(win))) cut=m.index; if(cut<0){ const nl=win.lastIndexOf('\n\n'); cut=nl>=0?nl:win.lastIndexOf('\n'); }
+      if(cut>=0) end=i+Math.floor(size*0.6)+cut; }
+    out.push(t.slice(i,end)); i=end; }
+  return out.filter(x=>x.trim()); }
+async function uploadPieces(parts){ const texts=[], imgs=[];
+  for(const p of parts){
+    if(/^text\/|html/.test(p.mime)){ const raw=new TextDecoder().decode(Uint8Array.from(atob(p.data), c=>c.charCodeAt(0)));
+      const body=/html/.test(p.mime)?(new DOMParser().parseFromString(raw,'text/html').body||{}).innerText||'':raw; texts.push(`--- ${p.name} ---\n`+body.replace(/\n{3,}/g,'\n\n').trim()); continue; }
+    if(p.mime==='application/pdf'){ const t=await withTimeout(pdfText(p.data), 45000, 'Reading the PDF took too long.');
+      if(t.replace(/\s/g,'').length>=200){ texts.push(`--- ${p.name} ---\n`+t); continue; }
+      const pg=await withTimeout(pdfPages(p.data, 12), 60000, 'Turning the PDF into images took too long.');
+      pg.pages.forEach((d,n)=>imgs.push({mime:'image/jpeg', name:`${p.name} page ${n+1}`, size:d.length, data:d})); continue; }
+    imgs.push(p); }
+  return {text:texts.join('\n\n'), imgs}; }
+function mergeReader(outs){ const ok=outs.filter(Boolean); const m={readable:false, reason:null, problem:null, product:{}, rating:{average:null,total:null}, reviews:[]};
+  const seen=new Set();
+  ok.forEach(d=>{ d=cleanReader(d); if(d.readable!==false||(d.reviews||[]).length) m.readable=true; if(!m.problem&&d.problem) { m.problem=d.problem; m.reason=d.reason||null; }
+    const pr=d.product||{}; Object.keys(pr).forEach(k=>{ const v=pr[k]; if(v==null||(Array.isArray(v)&&!v.length)) return;
+      if(Array.isArray(v)&&Array.isArray(m.product[k])) v.forEach(x=>{ const key=JSON.stringify(x); if(!m.product[k].some(y=>JSON.stringify(y)===key)) m.product[k].push(x); });
+      else if(m.product[k]==null||(Array.isArray(m.product[k])&&!m.product[k].length)) m.product[k]=Array.isArray(v)?v.slice():v; });
+    if(m.rating.average==null&&d.rating&&d.rating.average!=null) m.rating=d.rating;
+    (d.reviews||[]).forEach(r=>{ const k=normText(r.text).toLowerCase().slice(0,80); if(!r.text||seen.has(k)) return; seen.add(k); m.reviews.push(r); }); });
+  m.reviews=m.reviews.map((r,i)=>Object.assign({}, r, {id:'R'+(i+1)})); if(m.reviews.length){ m.readable=true; m.problem=null; m.reason=null; }
+  return m; }
+async function readUpload(parts){
+  const head='INPUT:\n'+JSON.stringify({profile:agentProfile()});
+  const {text, imgs}=await uploadPieces(parts);
+  const jobs=splitText(text, PART_CHARS).map(t=>({text:t, parts:[]}));
+  for(let i=0;i<imgs.length;i+=IMGS_PER_CALL) jobs.push({text:'', parts:imgs.slice(i,i+IMGS_PER_CALL)});
+  if(!jobs.length) throw new Error('No text or pages could be read from the files.');
+  const n=jobs.length, t0=performance.now(), labels=new Set(); let firstErr=null;
+  const one=(j,k)=>{ const note=n>1?`\nThis is part ${k+1} of ${n} of the upload. Extract everything visible in this part; if the product details are not in this part, use null for them.`:'';
+    const body=head+note+(j.text?'\n\nTEXT OF THE UPLOADED FILES:\n'+j.text:'\nRead the attached pages.');
+    return callAgent(n>1?`Reader part ${k+1}/${n}`:'Reader', k%2===0?'reader':'more', promptFor('reader'), body, j.parts, {json:true})
+      .then(o=>{ labels.add(o.label); return o.data; }).catch(e=>{ if(cancelled) throw e; firstErr=firstErr||e; return null; }); };
+  const first=await one(jobs[0],0); if(cancelled) return null;
+  const rest=await Promise.all(jobs.slice(1).map((j,k)=>one(j,k+1)));
+  const outs=[first].concat(rest); if(!outs.some(Boolean)) throw firstErr||new Error('The Reader could not read the files.');
+  return {data:mergeReader(outs), ms:Math.round(performance.now()-t0), label:[...labels].join(' + ')+(n>1?` (${n} parts${outs.filter(x=>!x).length?`, ${outs.filter(x=>!x).length} failed`:''})`:'')}; }
+
 /* ---------- 2. Upload ---------- */
 function viewUpload(){
   nav('check'); if(!profile){ viewProfile(); return; }
@@ -823,8 +869,8 @@ async function runLive(){
   const ctx={times:{}, models:{}};
   try{
     mark(0,'run'); const parts=await withTimeout(fileParts(files), 30000, 'Reading your files took too long.');
-    const rd=await callAgent('Reader', 'reader', promptFor('reader'), 'INPUT:\n'+JSON.stringify({profile:agentProfile()})+'\nRead the attached files.', parts, {json:true});
-    if(cancelled) return; ctx.reader=cleanReader(rd.data); ctx.times.Reader=rd.ms; ctx.models.Reader=rd.label; mark(0,'done',secs(rd.ms));
+    const rd=await readUpload(parts);
+    if(cancelled||!rd) return; ctx.reader=cleanReader(rd.data); ctx.times.Reader=rd.ms; ctx.models.Reader=rd.label; mark(0,'done',secs(rd.ms));
     if(ctx.reader.readable===false && !(ctx.reader.product||{}).name){ current.running=false;
       logEvent({type:'run', run_id:id, status:'unreadable', ms:Math.round(performance.now()-t0), detail:ctx.reader.problem||'not readable'}); viewUnreadable(ctx.reader.problem); return; }
     ctx.counts={upload:(ctx.reader.reviews||[]).length, other:[], memory:0};
