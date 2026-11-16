@@ -26,27 +26,7 @@ function saveReviews_(d) {
   return out.length;
 }
 
-/* Team model proxy: the free-tier keys live in Script properties (GROQ_KEY, GEMINI_KEY), never in the web page.
-   Only the two model hosts are allowed, and a daily call cap protects the free quota. */
-const PROXY_HOSTS = {'api.groq.com': 'GROQ_KEY', 'generativelanguage.googleapis.com': 'GEMINI_KEY'};
-const PROXY_DAILY_CAP = 1500;
-function proxy_(d) {
-  const out = o => ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
-  const m = String(d.url || '').match(/^https:\/\/([^\/]+)\//); const host = m && m[1];
-  if (!host || !PROXY_HOSTS[host]) return out({status: 400, text: JSON.stringify({error: {message: 'Host not allowed'}})});
-  const key = PropertiesService.getScriptProperties().getProperty(PROXY_HOSTS[host]);
-  if (!key) return out({status: 401, text: JSON.stringify({error: {message: 'Team key not set up'}})});
-  const day = Utilities.formatDate(new Date(), 'America/New_York', 'yyyyMMdd'), props = PropertiesService.getScriptProperties();
-  const n = +(props.getProperty('calls_' + day) || 0);
-  if (n >= PROXY_DAILY_CAP) return out({status: 429, text: JSON.stringify({error: {message: 'Team daily limit reached (per day)'}})});
-  props.setProperty('calls_' + day, String(n + 1));
-  const headers = host === 'api.groq.com' ? {Authorization: 'Bearer ' + key} : {'x-goog-api-key': key};
-  const r = UrlFetchApp.fetch(d.url, {method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify(d.body || {}), muteHttpExceptions: true});
-  return out({status: r.getResponseCode(), text: r.getContentText()});
-}
-
 function doPost(e) {
-  try { const d0 = JSON.parse(e.postData.contents); if (d0.type === 'llm') return proxy_(d0); } catch (err) {}
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const d = JSON.parse(e.postData.contents);
