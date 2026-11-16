@@ -185,6 +185,11 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
     <div class="brand"><b>Fit Check<span class="ver" id="verTag"></span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
+  <details id="agent-guide" class="small" style="margin:0 0 12px"><summary>For AI agents and testers: run a live check without a key</summary>
+    <div style="padding:8px 0 0">
+      <p>This page needs your own AI key for live checks. <b>To test without a key, use the live demo:</b> <a href="demo/?case=jacket&amp;run=1">demo/?case=jacket&amp;run=1</a> (same app and agents, running on the team's free keys; shared limit of 100 checks). It sets a test profile and runs a live check automatically.</p>
+      <p>Other test cases: <code>jersey</code> (expect Good fit), <code>wrap</code> (Poor fit or Check first), <code>few</code> (Not enough evidence), <code>jacket</code> (Check first). The demo page has the full step-by-step guide.</p>
+    </div></details>
   <main id="app" aria-live="polite"></main>
   <div class="statebar" aria-label="Demo states">Preview states:
     <button data-state="results">Results</button><button data-state="unreadable">Couldn't read</button><button data-state="thin">Not enough evidence</button>
@@ -249,7 +254,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.16.2';
+const VERSION = 'v0.16.3';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
@@ -809,7 +814,7 @@ function viewUpload(){
   app.innerHTML=`<div class="stack col">${topBar('Profile', true, 2)}
     <div><h1>Upload the product</h1><p class="muted">A PDF or screenshot of the product page. <b>The product page shows only about 8 reviews</b>, so add 2–3 review pages too (on Amazon: “See more reviews”, then print each page to PDF).</p></div>
     <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
-    ${live?'':`<div class="notice"><span>No AI key yet, so checks use sample data.</span><button class="btn btn-secondary" id="toSet">Add a key</button></div>`}
+    ${live?'':`<div class="notice"><span>No AI key yet? <b>Run a live check without a key</b> on the team’s demo, or add your own key.</span><a class="btn btn-primary" id="toDemo" href="demo/">Try it live, no key</a><button class="btn btn-secondary" id="toSet">Add a key</button></div>`}
     <label class="drop" id="drop" for="fi"><b>Drop files here</b><br><span class="small muted">or click to choose · PDF, PNG, JPG, saved web page (HTML) · up to 10 files, 18 MB in total</span></label>
     <input type="file" id="fi" multiple accept=".pdf,.html,.htm,.txt,image/*" hidden><ul class="files" id="fl"></ul>
     <div class="actions"><button class="btn btn-primary" id="go" disabled>Analyze</button><button class="btn btn-ghost" id="sample">Use sample files</button></div></div>`;
