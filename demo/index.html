@@ -256,7 +256,7 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.18-demo';
+const VERSION = 'v0.18.1-demo';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
 /* ---------- Team access: graders and their AI agents run live checks without their own key ----------
    The team's free-tier keys stay in the Sheet's Apps Script (Script properties), never in this page.
@@ -265,6 +265,9 @@ const DEMO_LIMIT = 100, TEAM_PROVS = ['groq','gemini'];
 /* Address of the demo's own Apps Script (holds the team keys and the 100-check count). Not a secret. */
 const DEMO_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxJy_8R-bNz73imF1nRoQkKxSEPzFiUGWIndrVdvpJMCVEcYQAayz6sQTGjTOzwtlg/exec';
 const proxyUrl = () => /^https:\/\/script\.google\.com\//.test(DEMO_PROXY_URL) ? DEMO_PROXY_URL : '';
+/* Which AI and model each agent uses on the team keys: set by the owner on the server's Control page. */
+let SERVER_AGENTS=null;
+const serverCfgP = proxyUrl() ? fetch(proxyUrl()+'?action=config').then(r=>r.json()).then(j=>{ SERVER_AGENTS=(j&&j.agents)||null; }).catch(()=>{}) : Promise.resolve();
 const demoKey = p => TEAM_PROVS.includes(p) && proxyUrl() ? '__team__' : '';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
@@ -304,7 +307,9 @@ function getCfg(){ let c=store.get('keys3', null);
       if(o.same!==false && o.prov && o.prov!=='gemini') for(const a in c.agents){ c.agents[a]=Object.assign({}, c.agents[a], {prov:o.prov, model:(o.model||{})[a]||PROV[o.prov].m[0]||''}); } }
     store.set('keys3', c); }
   const d=JSON.parse(JSON.stringify(CFG0)); c=Object.assign(d, c);
-  const ag={}; for(const a in AGENT_DEFAULTS) ag[a]=Object.assign({}, AGENT_DEFAULTS[a], (c.agents||{})[a]||{}); c.agents=ag; return c; }
+  const ag={}; for(const a in AGENT_DEFAULTS) ag[a]=Object.assign({}, AGENT_DEFAULTS[a], (c.agents||{})[a]||{});
+  if(SERVER_AGENTS && !Object.values(c.keys||{}).some(Boolean)) for(const a in ag) if(SERVER_AGENTS[a]) ag[a]=Object.assign({}, ag[a], SERVER_AGENTS[a]);
+  c.agents=ag; return c; }
 const promptFor = id => getCfg().prompts[id] || PROMPT_DEFAULTS[id];
 const geminiKey = c => (c||getCfg()).keys.gemini||demoKey('gemini');
 function agentCfg(id, backup){ const c=getCfg();
@@ -881,6 +886,7 @@ function viewUpload(){
   $('#sample').onclick=()=>{ files=['lunaria-wrap-dress.pdf','reviews-size-M-page1.png','reviews-size-M-page2.png']; act('Use sample files'); render(); };
   const start=async()=>{ const real=files.every(f=>typeof f!=='string');
     if(real && files.reduce((s,f)=>s+f.size,0)>18*1024*1024){ toast('Files are over 18 MB in total. Remove some.'); return; }
+    await serverCfgP;
     if(real && live && usingDemo()){ $('#go').disabled=true; const d=await demoStatus(true); $('#go').disabled=false;
       if(!d.ok){ toast('The team’s demo checks are used up. Add your own free key in Settings to keep checking.'); act('Demo limit reached', d); return; }
       act('Demo check', {used:d.used, limit:d.limit, shared:d.shared}); }

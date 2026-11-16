@@ -7,11 +7,23 @@
  *   later checks reuse the same product's reviews and the brand's other products.
  * - Brand sizing: finds how the same brand's OTHER products run (web search + page read + Groq), cached 7 days.
  *   Needs Script properties SERPER_KEY and FIRECRAWL_KEY (free tiers) for the live search; memory works without them.
+ * Control page: open the web app address + ?admin=1 and enter ADMIN_PIN (Script properties). Switches, keys, models per agent, counters.
  * On/off: in Script properties set USE_ALL (everything), USE_GROQ, USE_GEMINI, USE_SERPER or USE_FIRECRAWL to off. No redeploy needed.
  * Setup: script.google.com > New project > paste this > Project Settings > Script properties (GROQ_KEY, GEMINI_KEY)
  *        > Deploy > New deployment > Web app > Execute as: Me, Who has access: Anyone > Deploy > copy the /exec URL.
  */
-const DEMO_LIMIT = 100, DAILY_CALL_CAP = 1500;
+const DEMO_LIMIT0 = 100, DAILY_CALL_CAP0 = 1500;
+const numProp_ = (k, d) => { const v = +(PropertiesService.getScriptProperties().getProperty(k) || ''); return v > 0 ? v : d; };
+const demoLimit_ = () => numProp_('DEMO_LIMIT', DEMO_LIMIT0), dailyCap_ = () => numProp_('DAILY_CALL_CAP', DAILY_CALL_CAP0);
+const dayKey_ = () => 'calls_' + Utilities.formatDate(new Date(), 'America/New_York', 'yyyyMMdd');
+/* Which AI (and model) each agent uses on the team keys. Changed from the Control page; the demo app reads it. */
+const AGENT_IDS = ['reader', 'more', 'analyst', 'decider'], AGENT_NAMES = {reader: 'Reader', more: 'Review collector', analyst: 'Analyst', decider: 'Decider'};
+const AGENTS0 = {reader: {prov: 'groq', model: 'openai/gpt-oss-20b', bprov: 'gemini', bmodel: 'gemini-3.5-flash'},
+  more: {prov: 'groq', model: 'openai/gpt-oss-120b', bprov: 'gemini', bmodel: 'gemini-3.5-flash'},
+  analyst: {prov: 'groq', model: 'openai/gpt-oss-120b', bprov: 'gemini', bmodel: 'gemini-3.5-flash'},
+  decider: {prov: 'groq', model: 'qwen/qwen3.8-27b', bprov: 'gemini', bmodel: 'gemini-3.5-flash'}};
+function agents_() { let a = {}; try { a = JSON.parse(PropertiesService.getScriptProperties().getProperty('AGENTS_JSON') || '{}'); } catch (err) {}
+  const out = {}; AGENT_IDS.forEach(id => out[id] = Object.assign({}, AGENTS0[id], a[id] || {})); return out; }
 const HOSTS = {'api.groq.com': 'GROQ_KEY', 'generativelanguage.googleapis.com': 'GEMINI_KEY'};
 /* On/off switches (Script properties): set USE_ALL, USE_GROQ, USE_GEMINI, USE_SERPER or USE_FIRECRAWL to off to stop that key being used. Anything else, or missing, means on. */
 const SWITCHES = ['USE_ALL', 'USE_GROQ', 'USE_GEMINI', 'USE_SERPER', 'USE_FIRECRAWL'];
@@ -92,11 +104,13 @@ function doGet(e) {
   if (p.action === 'demo_status' || p.action === 'demo_take') {
     const lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
-      let used = +(props.getProperty('demo_used') || 0); const ok = used < DEMO_LIMIT;
+      let used = +(props.getProperty('demo_used') || 0); const ok = used < demoLimit_();
       if (p.action === 'demo_take' && ok) { used++; props.setProperty('demo_used', String(used)); }
-      return json_({used: used, limit: DEMO_LIMIT, ok: ok});
+      return json_({used: used, limit: demoLimit_(), ok: ok});
     } finally { lock.releaseLock(); }
   }
+  if (p.action === 'config') return json_({agents: agents_()});
+  if (p.admin) return HtmlService.createHtmlOutput(ADMIN_HTML).setTitle('Fit Check · Control').addMetaTag('viewport', 'width=device-width, initial-scale=1');
   return ContentService.createTextOutput('Fit Check demo server is running.');
 }
 
@@ -109,8 +123,8 @@ function doPost(e) {
   if (off_(HOSTS[host].replace('_KEY', ''))) return json_({status: 403, text: '{"error":{"message":"Team key switched off by the owner"}}'});
   const props = PropertiesService.getScriptProperties(), key = props.getProperty(HOSTS[host]);
   if (!key) return json_({status: 401, text: '{"error":{"message":"Team key not set up"}}'});
-  const day = 'calls_' + Utilities.formatDate(new Date(), 'America/New_York', 'yyyyMMdd'), n = +(props.getProperty(day) || 0);
-  if (n >= DAILY_CALL_CAP) return json_({status: 429, text: '{"error":{"message":"Team daily limit reached (per day)"}}'});
+  const day = dayKey_(), n = +(props.getProperty(day) || 0);
+  if (n >= dailyCap_()) return json_({status: 429, text: '{"error":{"message":"Team daily limit reached (per day)"}}'});
   props.setProperty(day, String(n + 1));
   const headers = host === 'api.groq.com' ? {Authorization: 'Bearer ' + key} : {'x-goog-api-key': key};
   const r = UrlFetchApp.fetch(d.url, {method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify(d.body || {}), muteHttpExceptions: true});
@@ -121,4 +135,114 @@ function doPost(e) {
 function setup() { const b = memBook_(); Logger.log('Memory sheet: ' + b.ss.getUrl()); }
 
 /* Run once from the editor (select "addSwitches", press Run): adds the on/off rows to Script properties, all set to on. */
-function addSwitches() { const p = PropertiesService.getScriptProperties(); SWITCHES.forEach(k => { if (!p.getProperty(k)) p.setProperty(k, 'on'); }); Logger.log('Switches: ' + SWITCHES.map(k => k + '=' + p.getProperty(k)).join(', ')); }
+function addSwitches() { const p = PropertiesService.getScriptProperties(); SWITCHES.forEach(k => { if (!p.getProperty(k)) p.setProperty(k, 'on'); });
+  if (!p.getProperty('ADMIN_PIN')) p.setProperty('ADMIN_PIN', String(Math.floor(100000 + Math.random() * 900000)));
+  Logger.log('Switches: ' + SWITCHES.map(k => k + '=' + p.getProperty(k)).join(', ') + '. Control page PIN is in Script properties (ADMIN_PIN).'); }
+
+/* ================= Control page (open the web app address with ?admin=1, enter the ADMIN_PIN) ================= */
+const KEY_PROPS = {groq: 'GROQ_KEY', gemini: 'GEMINI_KEY', serper: 'SERPER_KEY', firecrawl: 'FIRECRAWL_KEY'};
+function pinOk_(pin) {
+  const p = PropertiesService.getScriptProperties(), lock = +(p.getProperty('admin_locked_until') || 0);
+  if (Date.now() < lock) throw new Error('Too many wrong PINs. Try again in 15 minutes.');
+  const real = p.getProperty('ADMIN_PIN');
+  if (!real) throw new Error('No ADMIN_PIN set. Run "addSwitches" in the editor once.');
+  if (String(pin || '') === real) { p.deleteProperty('admin_bad'); return true; }
+  const bad = +(p.getProperty('admin_bad') || 0) + 1; p.setProperty('admin_bad', String(bad));
+  if (bad >= 5) { p.setProperty('admin_locked_until', String(Date.now() + 15 * 60000)); p.deleteProperty('admin_bad'); }
+  throw new Error('Wrong PIN.');
+}
+const tail_ = k => k ? '…' + String(k).slice(-6) : 'not set';
+function adminLoad(pin) { pinOk_(pin); const p = PropertiesService.getScriptProperties();
+  const sw = {}; SWITCHES.forEach(k => sw[k] = String(p.getProperty(k) || 'on').toLowerCase() === 'off' ? 'off' : 'on');
+  const keys = {}; Object.keys(KEY_PROPS).forEach(k => keys[k] = tail_(p.getProperty(KEY_PROPS[k])));
+  return {switches: sw, keys: keys, agents: agents_(), names: AGENT_NAMES, ids: AGENT_IDS,
+    demoUsed: +(p.getProperty('demo_used') || 0), demoLimit: demoLimit_(), callsToday: +(p.getProperty(dayKey_()) || 0), dailyCap: dailyCap_(),
+    memSheet: p.getProperty('MEM_SHEET_ID') ? 'https://docs.google.com/spreadsheets/d/' + p.getProperty('MEM_SHEET_ID') + '/edit' : ''}; }
+function adminModels(pin, prov) { pinOk_(pin); const p = PropertiesService.getScriptProperties();
+  if (prov === 'groq') { const k = p.getProperty('GROQ_KEY'); if (!k) return {models: [], error: 'No Groq key'};
+    const r = UrlFetchApp.fetch('https://api.groq.com/openai/v1/models', {headers: {Authorization: 'Bearer ' + k}, muteHttpExceptions: true});
+    if (r.getResponseCode() !== 200) return {models: [], error: 'Groq said ' + r.getResponseCode()};
+    return {models: (JSON.parse(r.getContentText()).data || []).map(m => m.id).filter(id => !/whisper|tts|guard|playai|orpheus|prompt-guard/i.test(id)).sort()}; }
+  if (prov === 'gemini') { const k = p.getProperty('GEMINI_KEY'); if (!k) return {models: [], error: 'No Gemini key'};
+    const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', {headers: {'x-goog-api-key': k}, muteHttpExceptions: true});
+    if (r.getResponseCode() !== 200) return {models: [], error: 'Gemini said ' + r.getResponseCode()};
+    return {models: (JSON.parse(r.getContentText()).models || []).filter(m => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0).map(m => m.name.replace(/^models\//, '')).filter(id => !/embedding|aqa|imagen|veo|tts|image/i.test(id)).sort()}; }
+  return {models: [], error: 'Unknown provider'}; }
+function adminSave(pin, d) { pinOk_(pin); const p = PropertiesService.getScriptProperties();
+  SWITCHES.forEach(k => { if (d.switches && d.switches[k]) p.setProperty(k, d.switches[k] === 'off' ? 'off' : 'on'); });
+  if (d.agents) { const a = {}; AGENT_IDS.forEach(id => { const x = d.agents[id] || {}; const ok = v => v === 'groq' || v === 'gemini';
+    a[id] = {prov: ok(x.prov) ? x.prov : AGENTS0[id].prov, model: String(x.model || AGENTS0[id].model).slice(0, 120), bprov: ok(x.bprov) ? x.bprov : '', bmodel: ok(x.bprov) ? String(x.bmodel || '').slice(0, 120) : ''}; });
+    p.setProperty('AGENTS_JSON', JSON.stringify(a)); }
+  if (+d.demoLimit > 0) p.setProperty('DEMO_LIMIT', String(Math.round(+d.demoLimit)));
+  if (+d.dailyCap > 0) p.setProperty('DAILY_CALL_CAP', String(Math.round(+d.dailyCap)));
+  if (d.demoUsed !== undefined && d.demoUsed !== '' && +d.demoUsed >= 0) p.setProperty('demo_used', String(Math.round(+d.demoUsed)));
+  return adminLoad(pin); }
+function adminSetKey(pin, which, key) { pinOk_(pin); if (!KEY_PROPS[which]) throw new Error('Unknown key');
+  key = String(key || '').trim(); if (key.length < 10) throw new Error('That key looks too short.');
+  PropertiesService.getScriptProperties().setProperty(KEY_PROPS[which], key); return adminLoad(pin); }
+
+const ADMIN_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--bg:#fafaf8;--card:#fff;--ink:#1d1d1b;--mut:#6b6b66;--line:#e3e2dc;--acc:#1f3a5f;--ok:#2f6b3a;--bad:#9b2c2c}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}.ver{font-size:11px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.lab{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 8px;font-weight:600}
+.row{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;padding:5px 0}
+.ag{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}.ag:first-of-type{border-top:0}
+.pair{display:grid;grid-template-columns:62px 110px 1fr;gap:6px;align-items:center;margin:2px 0}
+select,input{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
+button{font:inherit;padding:7px 12px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer}
+button.sec{background:#fff;color:var(--acc)}.small{font-size:12px;color:var(--mut)}
+.keyrow{display:grid;grid-template-columns:90px 90px 1fr auto;gap:6px;align-items:center;padding:4px 0}
+.bar{position:sticky;bottom:0;background:var(--bg);padding:10px 0;display:flex;gap:10px;align-items:center}
+.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+@media(max-width:560px){.row,.ag{grid-template-columns:1fr}.keyrow{grid-template-columns:80px 1fr auto}.keyrow .tail{display:none}.pair{grid-template-columns:56px 90px 1fr}}
+</style></head><body><div class="wrap">
+<h1>Fit Check · Control</h1><div class="ver">control page v1 · team keys only (your own browser keys are not affected)</div>
+<div id="login" class="card"><p class="lab">Enter PIN</p><div style="display:flex;gap:8px"><input id="pin" type="password" placeholder="ADMIN_PIN from Script properties" autocomplete="current-password"><button id="go">Open</button></div><p class="msg small" id="lmsg"></p></div>
+<div id="main" hidden>
+<div class="card"><p class="lab">Switches</p><div id="sw"></div><p class="small">Off stops that key on the server right away. "All keys" off stops everything.</p></div>
+<div class="card"><p class="lab">Which AI each agent uses (team keys)</p><div id="agents"></div>
+<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="sec" id="refresh">Reload model lists</button><span class="small" id="mmsg"></span></div>
+<p class="small">Primary runs first; Backup takes over if Primary fails. Lists come live from Groq and Gemini.</p></div>
+<div class="card"><p class="lab">Keys (only the end is shown)</p><div id="keys"></div></div>
+<div class="card"><p class="lab">Counters and limits</p>
+<div class="row"><span>Demo checks used</span><div style="display:flex;gap:6px;align-items:center"><input id="du" type="number" min="0" style="width:90px"> of <input id="dl" type="number" min="1" style="width:90px"><button class="sec" id="reset">Reset to 0</button></div></div>
+<div class="row"><span>AI calls today</span><div style="display:flex;gap:6px;align-items:center"><b id="ct"></b> of <input id="dc" type="number" min="1" style="width:90px"> per day</div></div>
+<div class="row"><span>Memory Sheet</span><a id="ms" target="_blank" rel="noopener">open</a></div></div>
+<div class="bar"><button id="save">Save</button><span class="msg small" id="smsg"></span></div>
+</div></div>
+<script>
+let PIN='', S=null, MODELS={groq:[],gemini:[]};
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const call=(fn,...a)=>new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(e=>rej(e))[fn](PIN,...a));
+const msg=(id,t,ok)=>{ const e=$(id); e.textContent=t; e.className='msg small '+(ok?'ok':'bad'); };
+const SWN={USE_ALL:'All keys',USE_GROQ:'Groq',USE_GEMINI:'Gemini',USE_SERPER:'Serper (web search)',USE_FIRECRAWL:'Firecrawl (page reader)'};
+const PROVS=[['groq','Groq'],['gemini','Gemini']];
+function opts(list,cur){ const l=list.slice(); if(cur&&l.indexOf(cur)<0) l.unshift(cur); return l.map(m=>'<option'+(m===cur?' selected':'')+'>'+esc(m)+'</option>').join(''); }
+function provSel(cur,blank){ return (blank?'<option value=""'+(!cur?' selected':'')+'>none</option>':'')+PROVS.map(p=>'<option value="'+p[0]+'"'+(p[0]===cur?' selected':'')+'>'+p[1]+'</option>').join(''); }
+function render(){
+  $('sw').innerHTML=Object.keys(SWN).map(k=>'<div class="row"><span>'+SWN[k]+'</span><select data-sw="'+k+'" style="max-width:120px"><option'+(S.switches[k]==='on'?' selected':'')+'>on</option><option'+(S.switches[k]==='off'?' selected':'')+'>off</option></select></div>').join('');
+  $('agents').innerHTML=S.ids.map(id=>{ const a=S.agents[id];
+    return '<div class="ag"><b>'+esc(S.names[id])+'</b><div>'+
+      '<div class="pair"><span class="small">Primary</span><select data-a="'+id+'" data-f="prov">'+provSel(a.prov)+'</select><select data-a="'+id+'" data-f="model">'+opts(MODELS[a.prov]||[],a.model)+'</select></div>'+
+      '<div class="pair"><span class="small">Backup</span><select data-a="'+id+'" data-f="bprov">'+provSel(a.bprov,true)+'</select><select data-a="'+id+'" data-f="bmodel"'+(a.bprov?'':' disabled')+'>'+(a.bprov?opts(MODELS[a.bprov]||[],a.bmodel):'<option></option>')+'</select></div></div></div>'; }).join('');
+  document.querySelectorAll('[data-a]').forEach(el=>el.onchange=()=>{ const a=S.agents[el.dataset.a], f=el.dataset.f; a[f]=el.value;
+    if(f==='prov'){ a.model=(MODELS[a.prov]||[])[0]||''; } if(f==='bprov'){ a.bmodel=a.bprov?((MODELS[a.bprov]||[])[0]||''):''; } if(f==='prov'||f==='bprov') render(); });
+  $('keys').innerHTML=[['groq','Groq'],['gemini','Gemini'],['serper','Serper'],['firecrawl','Firecrawl']].map(k=>'<div class="keyrow"><span>'+k[1]+'</span><span class="small tail">'+esc(S.keys[k[0]])+'</span><input type="password" id="k_'+k[0]+'" placeholder="paste new key" autocomplete="off"><button class="sec" data-k="'+k[0]+'">Update</button></div>').join('');
+  document.querySelectorAll('[data-k]').forEach(b=>b.onclick=async()=>{ const v=$('k_'+b.dataset.k).value.trim(); if(!v) return msg('smsg','Paste a key first.');
+    b.disabled=true; try{ const keep=S.agents; S=await call('adminSetKey',b.dataset.k,v); S.agents=keep; render(); msg('smsg',b.dataset.k+' key updated.',1); if(b.dataset.k==='groq'||b.dataset.k==='gemini') loadModels(); }catch(e){ msg('smsg',e.message||String(e)); } b.disabled=false; });
+  $('du').value=S.demoUsed; $('dl').value=S.demoLimit; $('ct').textContent=S.callsToday; $('dc').value=S.dailyCap;
+  const ms=$('ms'); if(S.memSheet){ ms.href=S.memSheet; ms.textContent='open'; } else { ms.removeAttribute('href'); ms.textContent='not created yet'; } }
+async function loadModels(){ msg('mmsg','Loading model lists…',1);
+  const r=await Promise.all(['groq','gemini'].map(p=>call('adminModels',p).catch(e=>({models:[],error:e.message}))));
+  MODELS.groq=r[0].models; MODELS.gemini=r[1].models; const err=r.map((x,i)=>x.error?(['Groq','Gemini'][i]+': '+x.error):'').filter(Boolean).join(' · ');
+  msg('mmsg', err||('Groq '+MODELS.groq.length+' models · Gemini '+MODELS.gemini.length+' models'), !err); render(); }
+$('go').onclick=async()=>{ PIN=$('pin').value; try{ S=await call('adminLoad'); $('login').hidden=true; $('main').hidden=false; render(); loadModels(); }catch(e){ msg('lmsg',e.message||String(e)); } };
+$('pin').onkeydown=e=>{ if(e.key==='Enter') $('go').click(); };
+$('refresh').onclick=loadModels;
+$('reset').onclick=()=>{ $('du').value=0; msg('smsg','Press Save to apply.',1); };
+$('save').onclick=async()=>{ const sw={}; document.querySelectorAll('[data-sw]').forEach(s=>sw[s.dataset.sw]=s.value);
+  $('save').disabled=true; try{ S=await call('adminSave',{switches:sw,agents:S.agents,demoUsed:$('du').value,demoLimit:$('dl').value,dailyCap:$('dc').value}); render(); msg('smsg','Saved at '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+'.',1); }catch(e){ msg('smsg',e.message||String(e)); } $('save').disabled=false; };
+<\/script></body></html>`;
