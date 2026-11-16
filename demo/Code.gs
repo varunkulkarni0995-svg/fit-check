@@ -105,3 +105,6 @@ function doPost(e) {
   const r = UrlFetchApp.fetch(d.url, {method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify(d.body || {}), muteHttpExceptions: true});
   return json_({status: r.getResponseCode(), text: r.getContentText()});
 }
+
+/* Run once from the editor (select "setup", press Run) to grant the Sheets permission and create the memory Sheet. */
+function setup() { const b = memBook_(); Logger.log('Memory sheet: ' + b.ss.getUrl()); }
