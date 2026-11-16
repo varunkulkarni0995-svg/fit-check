@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementBy
    Calls go through that script, which also keeps the shared 100-check count. */
 const DEMO_LIMIT = 100, TEAM_PROVS = ['groq','gemini'];
 /* Address of the demo's own Apps Script (holds the team keys and the 100-check count). Not a secret. */
-const DEMO_PROXY_URL = 'PASTE_DEMO_SCRIPT_URL';
+const DEMO_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxJy_8R-bNz73imF1nRoQkKxSEPzFiUGWIndrVdvpJMCVEcYQAayz6sQTGjTOzwtlg/exec';
 const proxyUrl = () => /^https:\/\/script\.google\.com\//.test(DEMO_PROXY_URL) ? DEMO_PROXY_URL : '';
 const demoKey = p => TEAM_PROVS.includes(p) && proxyUrl() ? '__team__' : '';
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
