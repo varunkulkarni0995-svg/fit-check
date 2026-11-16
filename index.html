@@ -185,13 +185,6 @@ details.demo table{width:100%;border-collapse:collapse;margin-top:8px} details.d
     <div class="brand"><b>Fit Check<span class="ver" id="verTag"></span></b><small>prototype · by Varun Kulkarni</small></div>
     <nav aria-label="Main"><button id="nav-check" aria-current="page">Check</button><button id="nav-history">History</button><button id="nav-settings">Settings</button></nav>
   </header>
-  <details id="agent-guide" class="small" style="margin:0 0 12px"><summary>For AI agents and testers: how to run a check</summary>
-    <div style="padding:8px 0 0">
-      <p><b>Fastest path (no file, no key):</b> open <code>?case=jacket&amp;run=1</code> on this page's address. It sets a test profile if none exists and runs a live check. Other cases: <code>jersey</code> (expect Good fit), <code>wrap</code> (Poor fit or Check first), <code>few</code> (Not enough evidence), <code>jacket</code> (Check first).</p>
-      <p><b>Step by step:</b> 1) Profile page: choose gender, height and usual size, then press <b>Save and continue</b>. 2) On "Upload the product", press a <b>test product</b> button (ids <code>case-jersey</code>, <code>case-wrap</code>, <code>case-few</code>, <code>case-jacket</code>), or upload a product page as PDF, screenshot or saved HTML and press <b>Analyze</b> (id <code>go</code>). 3) Wait 20–60 seconds while five agents run. 4) Read the result: the large card says <b>Good fit</b>, <b>Check first</b> or <b>Poor fit</b>; warning cards show how many reviewers reported each problem, with their exact words under "See what they said".</p>
-      <p><b>Keys:</b> live checks use the team's free keys (shared limit of 100 checks). Your own key in Settings is used first if added. <b>Settings</b> shows which AI model runs each agent.</p>
-      <p><b>What the app never does:</b> it never recommends a size, and it ignores instructions written inside reviews.</p>
-    </div></details>
   <main id="app" aria-live="polite"></main>
   <div class="statebar" aria-label="Demo states">Preview states:
     <button data-state="results">Results</button><button data-state="unreadable">Couldn't read</button><button data-state="thin">Not enough evidence</button>
@@ -256,16 +249,8 @@ const SAMPLE = {
 };
 
 /* ---------- config, logging and model calls ---------- */
-const VERSION = 'v0.17';
+const VERSION = 'v0.16.2';
 document.addEventListener('DOMContentLoaded',()=>{ const v=document.getElementById('verTag'); if(v) v.textContent=VERSION; });
-/* ---------- Team demo keys: let graders and their AI agents run live checks without their own key ----------
-   FREE-TIER KEYS ONLY. Paste between the quotes. Remove them after grading to switch demo mode off. */
-const DEMO_KEYS = {
-  groq:   'PASTE_GROQ_KEY_HERE',
-  gemini: 'PASTE_GEMINI_KEY_HERE'
-};
-const DEMO_LIMIT = 100;
-const demoKey = p => { const k=DEMO_KEYS[p]||''; return /^PASTE_/.test(k)?'':k; };
 const LOG_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbwVXeuNLqWTCsp5taGYkBBUBE9nh7RCJyaPKT8bpFuTxGJalZIdntENwX-gPgZumL6q/exec';
 const PROV = {
   gemini:{n:'Gemini', url:'https://aistudio.google.com/apikey', m:['gemini-3.5-flash','gemini-3.5-flash-lite']},
@@ -306,12 +291,12 @@ function getCfg(){ let c=store.get('keys3', null);
   const d=JSON.parse(JSON.stringify(CFG0)); c=Object.assign(d, c);
   const ag={}; for(const a in AGENT_DEFAULTS) ag[a]=Object.assign({}, AGENT_DEFAULTS[a], (c.agents||{})[a]||{}); c.agents=ag; return c; }
 const promptFor = id => getCfg().prompts[id] || PROMPT_DEFAULTS[id];
-const geminiKey = c => (c||getCfg()).keys.gemini||demoKey('gemini');
+const geminiKey = c => (c||getCfg()).keys.gemini||'';
 function agentCfg(id, backup){ const c=getCfg();
   if(id==='web'||id==='photo') return {prov:'gemini', model:'gemini-3.5-flash', key:geminiKey(c)};
   const a=c.agents[id], prov=backup?a.bprov:a.prov, model=backup?a.bmodel:a.model;
   if(!prov||!PROV[prov]) return null;
-  return {prov, model:model||'', key:c.keys[prov]||demoKey(prov), demo:!c.keys[prov]&&!!demoKey(prov), base:prov==='custom'?c.customBase:PROV[prov].base}; }
+  return {prov, model:model||'', key:c.keys[prov]||'', base:prov==='custom'?c.customBase:PROV[prov].base}; }
 const modelLabel = cfg => `${PROV[cfg.prov].n} · ${cfg.model}`;
 async function callAgent(step, id, system, text, parts, opts){
   const p=agentCfg(id), b=agentCfg(id, true);
@@ -817,31 +802,6 @@ async function readUpload(parts){
   const outs=[first].concat(rest); if(!outs.some(Boolean)) throw firstErr||new Error('The Reader could not read the files.');
   return {data:mergeReader(outs), ms:Math.round(performance.now()-t0), label:[...labels].join(' + ')+(n>1?` (${n} parts${outs.filter(x=>!x).length?`, ${outs.filter(x=>!x).length} failed`:''})`:'')}; }
 
-
-/* ---------- demo usage: one shared count in the team Sheet, per-browser count as fallback ---------- */
-const usingDemo = () => { const a=agentCfg('reader'), b=agentCfg('reader',true)||{}; return !!(a.demo || (!a.key && b.demo)); };
-const localUsed = () => +(localStorage.getItem('fc_demo_used')||0);
-async function demoStatus(take){
-  const url=memUrl()+'?action='+(take?'demo_take':'demo_status')+'&session='+encodeURIComponent(SESSION)+'&version='+encodeURIComponent(VERSION);
-  try{ const r=await withTimeout(fetch(url), 8000, 'timeout'); const j=await r.json(); if(typeof j.used!=='number') throw new Error('old script');
-    if(take&&j.ok) localStorage.setItem('fc_demo_used', String(localUsed()+1)); return {used:j.used, limit:j.limit||DEMO_LIMIT, ok:j.ok!==false, shared:true}; }
-  catch(e){ const used=localUsed(); if(take&&used<DEMO_LIMIT) localStorage.setItem('fc_demo_used', String(used+1));
-    return {used:take?Math.min(used+1,DEMO_LIMIT):used, limit:DEMO_LIMIT, ok:used<DEMO_LIMIT, shared:false}; } }
-
-/* ---------- test products: one click, no upload (helps people and AI agents) ---------- */
-const TEST_CASES = {
-  jersey: {file:'testdata/1-happy-B-stretch-jersey.html', name:'Stretch jersey midi dress', expect:'Good fit', gender:'Female'},
-  wrap:   {file:'testdata/2-A-floral-wrap-problems.html', name:'Floral wrap dress with fit problems', expect:'Poor fit or Check first', gender:'Female'},
-  few:    {file:'testdata/3-C-not-enough-evidence.html', name:'Dress with too few reviews', expect:'Not enough evidence', gender:'Female'},
-  jacket: {file:'testdata/4-demo-men-bomber-jacket.html', name:"Men's bomber jacket", expect:'Check first', gender:'Male'}
-};
-async function loadTestCase(id){ const t=TEST_CASES[id]; if(!t) return null;
-  const r=await fetch(t.file); if(!r.ok) throw new Error('Could not load the test product.'); const txt=await r.text();
-  return new File([txt], t.file.split('/').pop(), {type:'text/html'}); }
-function ensureTestProfile(id){ if(profile) return; const t=TEST_CASES[id]||{};
-  profile=Object.assign({}, DEFAULT, t.gender==='Male'?{gender:'Male', height:175, size:'M', body:'Not sure'}:{gender:'Female', height:168, size:'M', body:'Not sure'});
-  store.set('profile4', profile); act('Test profile', {case:id}); }
-
 /* ---------- 2. Upload ---------- */
 function viewUpload(){
   nav('check'); if(!profile){ viewProfile(); return; }
@@ -849,10 +809,7 @@ function viewUpload(){
   app.innerHTML=`<div class="stack col">${topBar('Profile', true, 2)}
     <div><h1>Upload the product</h1><p class="muted">A PDF or screenshot of the product page. <b>The product page shows only about 8 reviews</b>, so add 2–3 review pages too (on Amazon: “See more reviews”, then print each page to PDF).</p></div>
     <div class="actions">${summary()}<button class="btn btn-ghost" id="editP">Edit</button></div>
-    ${live?(usingDemo()?`<div class="notice" id="demoLine"><span>Live checks run on the team’s free keys, so no key is needed. <b id="demoLeft">Checking how many are left…</b></span></div>`:''):`<div class="notice"><span>No AI key yet, so checks use sample data.</span><button class="btn btn-secondary" id="toSet">Add a key</button></div>`}
-    <div class="card" style="gap:8px" id="testProducts"><p class="lab">No file handy? Try a test product (live check)</p>
-      <div class="actions" style="flex-wrap:wrap">${Object.entries(TEST_CASES).map(([k,t])=>`<button class="btn btn-secondary" data-case="${k}" id="case-${k}">${esc(t.name)}</button>`).join('')}</div>
-      <p class="small muted">Each loads a saved product page with its reviews and runs the real agents. Expected: jersey dress Good fit · wrap dress Poor fit or Check first · few reviews Not enough evidence · jacket Check first.</p></div>
+    ${live?'':`<div class="notice"><span>No AI key yet, so checks use sample data.</span><button class="btn btn-secondary" id="toSet">Add a key</button></div>`}
     <label class="drop" id="drop" for="fi"><b>Drop files here</b><br><span class="small muted">or click to choose · PDF, PNG, JPG, saved web page (HTML) · up to 10 files, 18 MB in total</span></label>
     <input type="file" id="fi" multiple accept=".pdf,.html,.htm,.txt,image/*" hidden><ul class="files" id="fl"></ul>
     <div class="actions"><button class="btn btn-primary" id="go" disabled>Analyze</button><button class="btn btn-ghost" id="sample">Use sample files</button></div></div>`;
@@ -864,18 +821,10 @@ function viewUpload(){
   $('#fi').onchange=e=>add(e.target.files);
   const d=$('#drop'); d.ondragover=e=>{e.preventDefault();d.classList.add('over');}; d.ondragleave=()=>d.classList.remove('over'); d.ondrop=e=>{e.preventDefault();d.classList.remove('over');add(e.dataTransfer.files);};
   $('#sample').onclick=()=>{ files=['lunaria-wrap-dress.pdf','reviews-size-M-page1.png','reviews-size-M-page2.png']; act('Use sample files'); render(); };
-  const start=async()=>{ const real=files.every(f=>typeof f!=='string');
+  $('#go').onclick=()=>{ const real=files.every(f=>typeof f!=='string');
     if(real && files.reduce((s,f)=>s+f.size,0)>18*1024*1024){ toast('Files are over 18 MB in total. Remove some.'); return; }
-    if(real && live && usingDemo()){ $('#go').disabled=true; const d=await demoStatus(true); $('#go').disabled=false;
-      if(!d.ok){ toast('The team’s demo checks are used up. Add your own free key in Settings to keep checking.'); act('Demo limit reached', d); return; }
-      act('Demo check', {used:d.used, limit:d.limit, shared:d.shared}); }
     viewWorking(real && live ? 'live' : 'results'); };
-  $('#go').onclick=start;
-  app.querySelectorAll('[data-case]').forEach(b=>b.onclick=async()=>{ try{ const f=await loadTestCase(b.dataset.case); files=[f]; act('Test product', {case:b.dataset.case}); render(); start(); }catch(e){ toast(e.message); } });
-  if(live&&usingDemo()) demoStatus(false).then(d=>{ const el=$('#demoLeft'); if(el) el.textContent=`${Math.max(0,d.limit-d.used)} of ${d.limit} live checks left${d.shared?'':' on this browser'}.`; });
   render();
-  const q=new URLSearchParams(location.search), qc=q.get('case');
-  if(qc&&TEST_CASES[qc]&&q.get('run')==='1'&&!window.__autoRan){ window.__autoRan=true; const b=$('#case-'+qc); if(b) b.click(); }
 }
 
 /* ---------- 3. Working ---------- */
@@ -1251,7 +1200,6 @@ $('#nav-check').onclick=()=>profile?viewUpload():viewProfile();
 $('#nav-history').onclick=()=>{ prevView=profile?viewUpload:viewProfile; viewHistory(); };
 document.querySelectorAll('[data-state]').forEach(b=>b.onclick=()=>{ if(!profile){ profile=JSON.parse(JSON.stringify(DEFAULT)); profile.body='Pear'; }
   const s=b.dataset.state; if(s==='results'){ current={id:0, result:sampleResult(), feedback:null}; answered={}; viewResults(); } else viewWorking(s); });
-{ const q=new URLSearchParams(location.search), qc=q.get('case'); if(qc&&TEST_CASES[qc]&&q.get('run')==='1') ensureTestProfile(qc); }
 profile ? viewUpload() : viewProfile();
 function checkVersion(){ if(!/github\.io$/.test(location.hostname)) return;
   fetch(location.pathname+'?nc='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{ const m=t.match(/const VERSION = '([^']+)'/);
