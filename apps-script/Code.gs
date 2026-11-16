@@ -43,6 +43,17 @@ function doPost(e) {
 }
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if (p.action === 'demo_status' || p.action === 'demo_take') {
+    const DEMO_LIMIT = 100, ss = SpreadsheetApp.getActiveSpreadsheet();
+    const lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      let sh = ss.getSheetByName('Demo usage');
+      if (!sh) { sh = ss.insertSheet('Demo usage'); sh.getRange(1, 1, 1, 3).setValues([['Time', 'Session', 'Version']]).setFontWeight('bold'); sh.setFrozenRows(1); }
+      let used = Math.max(0, sh.getLastRow() - 1), ok = used < DEMO_LIMIT;
+      if (p.action === 'demo_take' && ok) { sh.appendRow([new Date(), p.session || '', p.version || '']); used++; }
+      return ContentService.createTextOutput(JSON.stringify({used: used, limit: DEMO_LIMIT, ok: ok})).setMimeType(ContentService.MimeType.JSON);
+    } finally { lock.releaseLock(); }
+  }
   if (p.action === 'reviews') {
     const brand = String(p.brand || '').toLowerCase().trim(), sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(REVIEWS);
     const rows = [];
